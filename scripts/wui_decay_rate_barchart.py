@@ -9,7 +9,6 @@ from bokeh.plotting import figure
 from bokeh.transform import dodge
 from bokeh.models.formatters import NumeralTickFormatter
 from bokeh.layouts import column
-from scipy import stats
 from scipy.stats import f_oneway, norm, ttest_ind
 
 # Import utils
