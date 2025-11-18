@@ -18,7 +18,7 @@ grandparent_dir = os.path.dirname(parent_dir)
 sys.path.append(os.path.join(grandparent_dir, "general_utils", "scripts"))
 
 # utils
-from metadata_utils import get_script_metadata  # type: ignore # noqa: E402
+from metadata_utils import get_script_metadata  # type: ignore[import-untyped]  # pylint: disable=import-error,wrong-import-position  # noqa: E402
 
 # ============================================================================
 # STATISTICAL ANALYSIS CONFIGURATION
