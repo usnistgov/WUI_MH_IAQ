@@ -256,7 +256,7 @@ def create_baseline_corrected_data(
     burns_to_process,
     exclude_instruments=None,
 ):
-    """Create baseline-corrected data for all instruments using the centralized baseline calculator."""
+    """Create baseline-corrected data for all instruments with centralized baseline calculator."""
     if exclude_instruments is None:
         exclude_instruments = []
 
