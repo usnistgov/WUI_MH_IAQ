@@ -10,7 +10,7 @@ from bokeh.transform import dodge
 from bokeh.models.formatters import NumeralTickFormatter
 from bokeh.layouts import column
 from scipy import stats
-from scipy.stats import f_oneway, norm
+from scipy.stats import f_oneway, norm, ttest_ind
 
 # Import utils
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -213,12 +213,6 @@ class BaselineCalculator:
         return 0.0
 
 
-def get_available_instruments_for_burn(burn):
-    """Get list of instruments that have data for a specific burn."""
-    # This is a helper to understand data availability
-    return []
-
-
 def get_matching_instruments_for_burns(data_by_instrument, burn_list):
     """Find instruments that have data for ALL specified burns."""
     if not burn_list:
@@ -315,7 +309,7 @@ def calculate_mean_data(corrected_data, burns_to_process):
             mean_decay = np.mean(baseline_corrected_values)
 
             # Calculate uncertainty
-            sem = np.std(baseline_corrected_values) / np.sqrt(
+            sem = np.std(baseline_corrected_values, ddof=1) / np.sqrt(
                 len(baseline_corrected_values)
             )
             instrument_uncertainty_contribution = np.sqrt(
@@ -619,14 +613,14 @@ def perform_pm04_merv_comparison_ztest(
 
 
 # ============================================================================
-# EXISTING ANOVA FUNCTIONS FOR PM1, PM2.5, PM10
+# T-TEST AND ANOVA FUNCTIONS FOR PM1, PM2.5, PM10
 # ============================================================================
 
 
-def perform_filter_count_anova(
+def perform_filter_count_analysis(
     data_by_instrument, baseline_calculator, pollutant_type, output_file
 ):
-    """Perform filter count ANOVA analysis."""
+    """Perform filter count analysis using both ANOVA and pairwise t-tests."""
     output_file.write("\n" + "=" * 60 + "\n")
     output_file.write(f"{pollutant_type} FILTER COUNT ANALYSIS\n")
     output_file.write("=" * 60 + "\n")
@@ -650,7 +644,7 @@ def perform_filter_count_anova(
     groups = []
     for burn in filter_count_burns:
         if burn in mean_data:
-            # For ANOVA, we need the individual instrument values, not just the mean
+            # For ANOVA, we need the individual instrument values
             burn_values = []
             for instrument in corrected_data:
                 if burn in corrected_data[instrument]:
@@ -658,6 +652,7 @@ def perform_filter_count_anova(
             groups.append(burn_values)
 
     if len(groups) >= 2:
+        # perform ANOVA
         f_stat, p_value = f_oneway(*groups)
 
         output_file.write("\n1. Filter Count ANOVA\n")
@@ -688,6 +683,45 @@ def perform_filter_count_anova(
             f"  Significant at α={alpha}: {is_significant} ({sig_indicator})\n"
         )
 
+        # Perform pairwise t-tests
+        output_file.write("\n  Pairwise t-tests:\n")
+        pairwise_results = []
+        comparisons = [(0, 1), (0, 2), (1, 2)]  # 1 vs 2, 1 vs 4, 2 vs 4
+
+        for idx_a, idx_b in comparisons:
+            if idx_a < len(groups) and idx_b < len(groups):
+                group_a = groups[idx_a]
+                group_b = groups[idx_b]
+                label_a = filter_count_labels[idx_a]
+                label_b = filter_count_labels[idx_b]
+
+                # Perform two-sample t-test
+                t_stat, t_p_value = ttest_ind(group_a, group_b)
+
+                t_sig = t_p_value < alpha
+                if t_p_value < 0.001:
+                    t_sig_indicator = "***"
+                elif t_p_value < 0.01:
+                    t_sig_indicator = "**"
+                elif t_p_value < 0.05:
+                    t_sig_indicator = "*"
+                else:
+                    t_sig_indicator = "ns"
+
+                output_file.write(
+                    f"    {label_a} vs {label_b}: t={t_stat:.4f}, p={t_p_value:.6f} {t_sig_indicator}\n"
+                )
+
+                pairwise_results.append(
+                    {
+                        "comparison": f"{label_a} vs {label_b}",
+                        "t_stat": t_stat,
+                        "p_value": t_p_value,
+                        "significant": t_sig,
+                        "sig_indicator": t_sig_indicator,
+                    }
+                )
+
         return {
             "f_stat": f_stat,
             "p_value": p_value,
@@ -698,15 +732,16 @@ def perform_filter_count_anova(
                 for i, burn in enumerate(filter_count_burns)
                 if burn in mean_data
             },
+            "pairwise_ttests": pairwise_results,
         }
 
     return {}
 
 
-def perform_new_vs_used_anova(
+def perform_new_vs_used_analysis(
     data_by_instrument, baseline_calculator, pollutant_type, output_file
 ):
-    """Perform new vs used filter ANOVA analysis."""
+    """Perform new vs used filter analysis using both ANOVA and t-test."""
     output_file.write("\n2. New vs Used Filter Analysis\n")
     output_file.write("-" * 60 + "\n")
 
@@ -736,7 +771,11 @@ def perform_new_vs_used_anova(
             used_values.append(corrected_data[instrument]["burn10"]["decay"])
 
     if new_values and used_values:
+        # ANOVA
         f_stat, p_value = f_oneway(new_values, used_values)
+
+        # T-test
+        t_stat, t_p_value = ttest_ind(new_values, used_values)
 
         output_file.write(
             f"  New filters: n={len(new_values)}, mean={np.mean(new_values):.4f} h⁻¹\n"
@@ -744,17 +783,21 @@ def perform_new_vs_used_anova(
         output_file.write(
             f"  Used filters: n={len(used_values)}, mean={np.mean(used_values):.4f} h⁻¹\n"
         )
-        output_file.write(f"\n  F-statistic: {f_stat:.4f}\n")
-        output_file.write(f"  P-value: {p_value:.6f}\n")
+
+        output_file.write(f"\n  ANOVA F-statistic: {f_stat:.4f}\n")
+        output_file.write(f"  ANOVA P-value: {p_value:.6f}\n")
+
+        output_file.write(f"\n  T-test statistic: {t_stat:.4f}\n")
+        output_file.write(f"  T-test P-value: {t_p_value:.6f}\n")
 
         alpha = STATISTICAL_CONFIG["alpha"]
-        is_significant = p_value < alpha
+        is_significant = t_p_value < alpha
 
-        if p_value < 0.001:
+        if t_p_value < 0.001:
             sig_indicator = "***"
-        elif p_value < 0.01:
+        elif t_p_value < 0.01:
             sig_indicator = "**"
-        elif p_value < 0.05:
+        elif t_p_value < 0.05:
             sig_indicator = "*"
         else:
             sig_indicator = "ns"
@@ -765,7 +808,9 @@ def perform_new_vs_used_anova(
 
         return {
             "f_stat": f_stat,
-            "p_value": p_value,
+            "anova_p_value": p_value,
+            "t_stat": t_stat,
+            "p_value": t_p_value,
             "significant": is_significant,
             "sig_indicator": sig_indicator,
             "new_mean": np.mean(new_values),
@@ -775,10 +820,10 @@ def perform_new_vs_used_anova(
     return {}
 
 
-def perform_merv_comparison_anova(
+def perform_merv_comparison_analysis(
     data_by_instrument, baseline_calculator, pollutant_type, output_file
 ):
-    """Perform MERV filter comparison ANOVA."""
+    """Perform MERV filter comparison using both ANOVA and t-test."""
     output_file.write("\n3. MERV Filter Comparison\n")
     output_file.write("-" * 60 + "\n")
 
@@ -808,7 +853,11 @@ def perform_merv_comparison_anova(
             merv13_values.append(corrected_data[instrument]["burn10"]["decay"])
 
     if merv12a_values and merv13_values:
+        # ANOVA
         f_stat, p_value = f_oneway(merv12a_values, merv13_values)
+
+        # T-test
+        t_stat, t_p_value = ttest_ind(merv12a_values, merv13_values)
 
         output_file.write(
             f"  MERV12A: n={len(merv12a_values)}, mean={np.mean(merv12a_values):.4f} h⁻¹\n"
@@ -817,17 +866,20 @@ def perform_merv_comparison_anova(
             f"  MERV13: n={len(merv13_values)}, mean={np.mean(merv13_values):.4f} h⁻¹\n"
         )
 
-        output_file.write(f"\n  F-statistic: {f_stat:.4f}\n")
-        output_file.write(f"  P-value: {p_value:.6f}\n")
+        output_file.write(f"\n  ANOVA F-statistic: {f_stat:.4f}\n")
+        output_file.write(f"  ANOVA P-value: {p_value:.6f}\n")
+
+        output_file.write(f"\n  T-test statistic: {t_stat:.4f}\n")
+        output_file.write(f"  T-test P-value: {t_p_value:.6f}\n")
 
         alpha = STATISTICAL_CONFIG["alpha"]
-        is_significant = p_value < alpha
+        is_significant = t_p_value < alpha
 
-        if p_value < 0.001:
+        if t_p_value < 0.001:
             sig_indicator = "***"
-        elif p_value < 0.01:
+        elif t_p_value < 0.01:
             sig_indicator = "**"
-        elif p_value < 0.05:
+        elif t_p_value < 0.05:
             sig_indicator = "*"
         else:
             sig_indicator = "ns"
@@ -838,7 +890,9 @@ def perform_merv_comparison_anova(
 
         return {
             "f_stat": f_stat,
-            "p_value": p_value,
+            "anova_p_value": p_value,
+            "t_stat": t_stat,
+            "p_value": t_p_value,
             "significant": is_significant,
             "sig_indicator": sig_indicator,
         }
@@ -849,21 +903,180 @@ def perform_merv_comparison_anova(
 def perform_two_way_anova_filter_analysis(
     data_by_instrument, baseline_calculator, pollutant_type, output_file
 ):
-    """Perform two-way ANOVA for filter analysis."""
-    output_file.write("\n4. Two-Way ANOVA (Filter Count × Condition)\n")
+    """
+    Perform two-way ANOVA for filter analysis.
+    Analyzes Filter Type (MERV12A vs MERV13) × Condition (New vs Used).
+    """
+    output_file.write("\n4. Two-Way ANOVA (Filter Type × Condition)\n")
     output_file.write("-" * 60 + "\n")
-    output_file.write("  (Placeholder - full implementation requires statsmodels)\n")
-    return {}
+    # Define burns with their characteristics
+    burn_characteristics = {
+        "burn7": {"filter_type": "MERV12A", "condition": "New"},
+        "burn8": {"filter_type": "MERV12A", "condition": "Used"},
+        "burn9": {"filter_type": "MERV13", "condition": "New"},
+        "burn10": {"filter_type": "MERV13", "condition": "Used"},
+    }
 
+    merv_burns = list(burn_characteristics.keys())
 
-def compare_anova_vs_instrument_uncertainties(
-    data_by_instrument, baseline_calculator, pollutant_type, output_file
-):
-    """Compare ANOVA variability with instrument uncertainties."""
-    output_file.write("\n5. ANOVA vs Instrument Uncertainties\n")
-    output_file.write("-" * 60 + "\n")
-    output_file.write("  (Comparison analysis)\n")
-    return {}
+    # Create baseline-corrected data
+    corrected_data = create_baseline_corrected_data(
+        data_by_instrument,
+        baseline_calculator,
+        pollutant_type,
+        merv_burns,
+        exclude_instruments=[],
+    )
+
+    # Organize data for two-way ANOVA
+    anova_data = []
+    for burn, characteristics in burn_characteristics.items():
+        for instrument in corrected_data:
+            if burn in corrected_data[instrument]:
+                anova_data.append(
+                    {
+                        "filter_type": characteristics["filter_type"],
+                        "condition": characteristics["condition"],
+                        "decay": corrected_data[instrument][burn]["decay"],
+                        "instrument": instrument,
+                    }
+                )
+
+    if not anova_data:
+        output_file.write("  No data available for two-way ANOVA\n")
+        return {}
+
+    # Convert to DataFrame
+    df_anova = pd.DataFrame(anova_data)
+
+    # Calculate group means
+    output_file.write("\n  Group Means:\n")
+    group_means = (
+        df_anova.groupby(["filter_type", "condition"])["decay"]
+        .agg(["mean", "std", "count"])
+        .reset_index()
+    )
+
+    for _, row in group_means.iterrows():
+        output_file.write(
+            f"    {row['filter_type']} {row['condition']}: "
+            f"mean={row['mean']:.4f}, std={row['std']:.4f}, n={int(row['count'])}\n"
+        )
+
+    # Manual two-way ANOVA calculation
+    # Grand mean
+    grand_mean = df_anova["decay"].mean()
+    n_total = len(df_anova)
+
+    # Factor A (filter_type) sums of squares
+    filter_means = df_anova.groupby("filter_type")["decay"].mean()
+    filter_counts = df_anova.groupby("filter_type").size()
+    ss_filter = sum(filter_counts * (filter_means - grand_mean) ** 2)
+    df_filter = len(filter_means) - 1
+
+    # Factor B (condition) sums of squares
+    condition_means = df_anova.groupby("condition")["decay"].mean()
+    condition_counts = df_anova.groupby("condition").size()
+    ss_condition = sum(condition_counts * (condition_means - grand_mean) ** 2)
+    df_condition = len(condition_means) - 1
+
+    # Interaction sums of squares
+    interaction_means = df_anova.groupby(["filter_type", "condition"])["decay"].mean()
+    interaction_counts = df_anova.groupby(["filter_type", "condition"]).size()
+
+    ss_interaction = 0
+    for (ft, cond), mean in interaction_means.items():
+        filter_mean = filter_means[ft]
+        cond_mean = condition_means[cond]
+        count = interaction_counts[(ft, cond)]
+        ss_interaction += count * (mean - filter_mean - cond_mean + grand_mean) ** 2
+
+    df_interaction = df_filter * df_condition
+
+    # Error (residual) sums of squares
+    ss_total = sum((df_anova["decay"] - grand_mean) ** 2)
+    ss_error = ss_total - ss_filter - ss_condition - ss_interaction
+    df_error = n_total - len(interaction_means)
+
+    # Mean squares
+    ms_filter = ss_filter / df_filter if df_filter > 0 else 0
+    ms_condition = ss_condition / df_condition if df_condition > 0 else 0
+    ms_interaction = ss_interaction / df_interaction if df_interaction > 0 else 0
+    ms_error = ss_error / df_error if df_error > 0 else 0
+
+    # F-statistics
+    f_filter = ms_filter / ms_error if ms_error > 0 else 0
+    f_condition = ms_condition / ms_error if ms_error > 0 else 0
+    f_interaction = ms_interaction / ms_error if ms_error > 0 else 0
+
+    # P-values
+    from scipy.stats import f as f_dist
+
+    p_filter = 1 - f_dist.cdf(f_filter, df_filter, df_error) if f_filter > 0 else 1
+    p_condition = (
+        1 - f_dist.cdf(f_condition, df_condition, df_error) if f_condition > 0 else 1
+    )
+    p_interaction = (
+        1 - f_dist.cdf(f_interaction, df_interaction, df_error)
+        if f_interaction > 0
+        else 1
+    )
+
+    # Write results
+    output_file.write("\n  Two-Way ANOVA Results:\n")
+    output_file.write(
+        f"    Filter Type:    F({df_filter},{df_error}) = {f_filter:.4f}, p = {p_filter:.6f}\n"
+    )
+    output_file.write(
+        f"    Condition:      F({df_condition},{df_error}) = {f_condition:.4f}, p = {p_condition:.6f}\n"
+    )
+    output_file.write(
+        f"    Interaction:    F({df_interaction},{df_error}) = {f_interaction:.4f}, p = {p_interaction:.6f}\n"
+    )
+
+    alpha = STATISTICAL_CONFIG["alpha"]
+
+    def get_sig_indicator(p_val):
+        if p_val < 0.001:
+            return "***"
+        elif p_val < 0.01:
+            return "**"
+        elif p_val < 0.05:
+            return "*"
+        else:
+            return "ns"
+
+    output_file.write(f"\n  Significance at α={alpha}:\n")
+    output_file.write(
+        f"    Filter Type:    {p_filter < alpha} ({get_sig_indicator(p_filter)})\n"
+    )
+    output_file.write(
+        f"    Condition:      {p_condition < alpha} ({get_sig_indicator(p_condition)})\n"
+    )
+    output_file.write(
+        f"    Interaction:    {p_interaction < alpha} ({get_sig_indicator(p_interaction)})\n"
+    )
+
+    return {
+        "filter_type": {
+            "f_stat": f_filter,
+            "p_value": p_filter,
+            "significant": p_filter < alpha,
+            "sig_indicator": get_sig_indicator(p_filter),
+        },
+        "condition": {
+            "f_stat": f_condition,
+            "p_value": p_condition,
+            "significant": p_condition < alpha,
+            "sig_indicator": get_sig_indicator(p_condition),
+        },
+        "interaction": {
+            "f_stat": f_interaction,
+            "p_value": p_interaction,
+            "significant": p_interaction < alpha,
+            "sig_indicator": get_sig_indicator(p_interaction),
+        },
+    }
 
 
 # ============================================================================
@@ -928,9 +1141,9 @@ def generate_statistical_summary(summary_results, summary_file_path):
                         f"     Z={result['z_stat']:.4f}, p={result['p_value']:.6f} {result['sig_indicator']}\n"
                     )
 
-        # PM1, PM2.5, PM10 Results (ANOVA)
+        # PM1, PM2.5, PM10 Results (ANOVA and t-tests)
         for pm_size in ["PM1", "PM2.5", "PM10"]:
-            f.write(f"\n\n{pm_size} RESULTS (ANOVA)\n")
+            f.write(f"\n\n{pm_size} RESULTS (ANOVA and t-tests)\n")
             f.write("-" * 80 + "\n")
 
             if pm_size in summary_results:
@@ -946,8 +1159,18 @@ def generate_statistical_summary(summary_results, summary_file_path):
                                 f"   {label}: {data['decay']:.4f}±{data['uncertainty']:.4f} h⁻¹\n"
                             )
                     f.write(
-                        f"   F={result.get('f_stat', 0):.4f}, p={result.get('p_value', 1):.6f} {result.get('sig_indicator', 'ns')}\n"
+                        f"   ANOVA: F={result.get('f_stat', 0):.4f}, p={result.get('p_value', 1):.6f} "
+                        f"{result.get('sig_indicator', 'ns')}\n"
                     )
+
+                    # Pairwise t-tests
+                    if "pairwise_ttests" in result:
+                        f.write("   Pairwise t-tests:\n")
+                        for ttest in result["pairwise_ttests"]:
+                            f.write(
+                                f"     {ttest['comparison']}: t={ttest['t_stat']:.4f}, "
+                                f"p={ttest['p_value']:.6f} {ttest['sig_indicator']}\n"
+                            )
 
                 # New vs used
                 if "new_vs_used" in pm_results:
@@ -956,7 +1179,11 @@ def generate_statistical_summary(summary_results, summary_file_path):
                     f.write(f"   New mean: {result.get('new_mean', 0):.4f} h⁻¹\n")
                     f.write(f"   Used mean: {result.get('used_mean', 0):.4f} h⁻¹\n")
                     f.write(
-                        f"   F={result.get('f_stat', 0):.4f}, p={result.get('p_value', 1):.6f} {result.get('sig_indicator', 'ns')}\n"
+                        f"   ANOVA: F={result.get('f_stat', 0):.4f}, p={result.get('anova_p_value', 1):.6f}\n"
+                    )
+                    f.write(
+                        f"   T-test: t={result.get('t_stat', 0):.4f}, p={result.get('p_value', 1):.6f} "
+                        f"{result.get('sig_indicator', 'ns')}\n"
                     )
 
                 # MERV comparison
@@ -964,8 +1191,35 @@ def generate_statistical_summary(summary_results, summary_file_path):
                     result = pm_results["merv_comparison"]
                     f.write("\n3. MERV Filter Comparison:\n")
                     f.write(
-                        f"   F={result.get('f_stat', 0):.4f}, p={result.get('p_value', 1):.6f} {result.get('sig_indicator', 'ns')}\n"
+                        f"   ANOVA: F={result.get('f_stat', 0):.4f}, p={result.get('anova_p_value', 1):.6f}\n"
                     )
+                    f.write(
+                        f"   T-test: t={result.get('t_stat', 0):.4f}, p={result.get('p_value', 1):.6f} "
+                        f"{result.get('sig_indicator', 'ns')}\n"
+                    )
+
+                # Two-way ANOVA
+                if "two_way_anova" in pm_results:
+                    result = pm_results["two_way_anova"]
+                    f.write("\n4. Two-Way ANOVA (Filter Type × Condition):\n")
+                    if "filter_type" in result:
+                        ft = result["filter_type"]
+                        f.write(
+                            f"   Filter Type: F={ft.get('f_stat', 0):.4f}, "
+                            f"p={ft.get('p_value', 1):.6f} {ft.get('sig_indicator', 'ns')}\n"
+                        )
+                    if "condition" in result:
+                        cond = result["condition"]
+                        f.write(
+                            f"   Condition: F={cond.get('f_stat', 0):.4f}, "
+                            f"p={cond.get('p_value', 1):.6f} {cond.get('sig_indicator', 'ns')}\n"
+                        )
+                    if "interaction" in result:
+                        inter = result["interaction"]
+                        f.write(
+                            f"   Interaction: F={inter.get('f_stat', 0):.4f}, "
+                            f"p={inter.get('p_value', 1):.6f} {inter.get('sig_indicator', 'ns')}\n"
+                        )
 
         f.write("\n" + "=" * 80 + "\n")
         f.write("END OF SUMMARY\n")
@@ -1074,25 +1328,23 @@ def create_transposed_bar_chart(
     ]  # #003f5c, #665191, #d45087
 
     # Check if conditions already include New/Used in labels (for MERV chart)
-    # If so, need to color by filter type, not by each condition
     conditions_include_new_used = all(
         "New" in c or "Used" in c for c in unique_conditions
     )
 
-    # For MERV chart, define filter type colors
+    # If conditions include filter types (MERV12A, MERV13), set up colors by filter type
+    filter_type_colors = {}
     if conditions_include_new_used:
-        # Extract unique filter types (e.g., "MERV 12A", "MERV 13")
+        # Extract unique filter types
         filter_types = []
-        for cond in unique_conditions:
-            # Extract the filter type by removing " New" or " Used"
-            filter_type = cond.replace(" New", "").replace(" Used", "")
+        for condition in unique_conditions:
+            filter_type = condition.replace(" New", "").replace(" Used", "")
             if filter_type not in filter_types:
                 filter_types.append(filter_type)
 
-        # Create color mapping for filter types
-        filter_type_colors = {}
-        for idx, ftype in enumerate(filter_types):
-            filter_type_colors[ftype] = chart_colors[idx % len(chart_colors)]
+        # Assign colors to filter types
+        for i, filter_type in enumerate(filter_types):
+            filter_type_colors[filter_type] = chart_colors[i % len(chart_colors)]
 
     # Add bars for each condition
     for i, condition in enumerate(unique_conditions):
@@ -1156,7 +1408,7 @@ def create_transposed_bar_chart(
                     line_width=1.5,
                 )
             else:
-                # Original logic for non-MERV charts (separate new/used with hatching)
+                # Original logic for non-MERV charts
                 color = chart_colors[i % len(chart_colors)]
 
                 # Separate new and used data
@@ -1360,21 +1612,18 @@ with open(stats_file_path, "w", encoding="utf-8") as stats_file:
 
     summary_results["PM0.4"] = {**pm04_filter_count, **pm04_new_vs_used, **pm04_merv}
 
-    # PM1 Statistical Analyses (ANOVA)
+    # PM1 Statistical Analyses (ANOVA + T-tests)
     stats_file.write("\n\nPM1 Statistical Analyses:\n")
-    pm1_filter_count = perform_filter_count_anova(
+    pm1_filter_count = perform_filter_count_analysis(
         pm1_data_raw, baseline_calculator, "PM1", stats_file
     )
-    pm1_new_vs_used = perform_new_vs_used_anova(
+    pm1_new_vs_used = perform_new_vs_used_analysis(
         pm1_data_raw, baseline_calculator, "PM1", stats_file
     )
-    pm1_merv = perform_merv_comparison_anova(
+    pm1_merv = perform_merv_comparison_analysis(
         pm1_data_raw, baseline_calculator, "PM1", stats_file
     )
-    perform_two_way_anova_filter_analysis(
-        pm1_data_raw, baseline_calculator, "PM1", stats_file
-    )
-    compare_anova_vs_instrument_uncertainties(
+    pm1_two_way = perform_two_way_anova_filter_analysis(
         pm1_data_raw, baseline_calculator, "PM1", stats_file
     )
 
@@ -1382,23 +1631,21 @@ with open(stats_file_path, "w", encoding="utf-8") as stats_file:
         "filter_count": pm1_filter_count,
         "new_vs_used": pm1_new_vs_used,
         "merv_comparison": pm1_merv,
+        "two_way_anova": pm1_two_way,
     }
 
-    # PM2.5 Statistical Analyses (ANOVA)
+    # PM2.5 Statistical Analyses (ANOVA + T-tests)
     stats_file.write("\n\nPM2.5 Statistical Analyses:\n")
-    pm25_filter_count = perform_filter_count_anova(
+    pm25_filter_count = perform_filter_count_analysis(
         pm25_data_raw, baseline_calculator, "PM2.5", stats_file
     )
-    pm25_new_vs_used = perform_new_vs_used_anova(
+    pm25_new_vs_used = perform_new_vs_used_analysis(
         pm25_data_raw, baseline_calculator, "PM2.5", stats_file
     )
-    pm25_merv = perform_merv_comparison_anova(
+    pm25_merv = perform_merv_comparison_analysis(
         pm25_data_raw, baseline_calculator, "PM2.5", stats_file
     )
-    perform_two_way_anova_filter_analysis(
-        pm25_data_raw, baseline_calculator, "PM2.5", stats_file
-    )
-    compare_anova_vs_instrument_uncertainties(
+    pm25_two_way = perform_two_way_anova_filter_analysis(
         pm25_data_raw, baseline_calculator, "PM2.5", stats_file
     )
 
@@ -1406,23 +1653,21 @@ with open(stats_file_path, "w", encoding="utf-8") as stats_file:
         "filter_count": pm25_filter_count,
         "new_vs_used": pm25_new_vs_used,
         "merv_comparison": pm25_merv,
+        "two_way_anova": pm25_two_way,
     }
 
-    # PM10 Statistical Analyses (ANOVA)
+    # PM10 Statistical Analyses (ANOVA + T-tests)
     stats_file.write("\n\nPM10 Statistical Analyses:\n")
-    pm10_filter_count = perform_filter_count_anova(
+    pm10_filter_count = perform_filter_count_analysis(
         pm10_data_raw, baseline_calculator, "PM10", stats_file
     )
-    pm10_new_vs_used = perform_new_vs_used_anova(
+    pm10_new_vs_used = perform_new_vs_used_analysis(
         pm10_data_raw, baseline_calculator, "PM10", stats_file
     )
-    pm10_merv = perform_merv_comparison_anova(
+    pm10_merv = perform_merv_comparison_analysis(
         pm10_data_raw, baseline_calculator, "PM10", stats_file
     )
-    perform_two_way_anova_filter_analysis(
-        pm10_data_raw, baseline_calculator, "PM10", stats_file
-    )
-    compare_anova_vs_instrument_uncertainties(
+    pm10_two_way = perform_two_way_anova_filter_analysis(
         pm10_data_raw, baseline_calculator, "PM10", stats_file
     )
 
@@ -1430,6 +1675,7 @@ with open(stats_file_path, "w", encoding="utf-8") as stats_file:
         "filter_count": pm10_filter_count,
         "new_vs_used": pm10_new_vs_used,
         "merv_comparison": pm10_merv,
+        "two_way_anova": pm10_two_way,
     }
 
     stats_file.write("\n\n" + "=" * 80 + "\n")
