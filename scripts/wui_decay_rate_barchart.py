@@ -1281,11 +1281,13 @@ def create_transposed_bar_chart(
     # Create figure
     p = figure(
         x_range=selected_pm_types,
-        height=600,
-        width=800,
+        height=500,
+        width=900,
         title=config["title"],
-        toolbar_location=None,
-        tools="",
+        toolbar_location="right",
+        tools="pan,box_zoom,wheel_zoom,reset,save",
+        background_fill_color="white",
+        border_fill_color="white",
     )
 
     # Prepare data for plotting
