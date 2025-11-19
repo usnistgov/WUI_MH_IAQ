@@ -1283,7 +1283,7 @@ def create_transposed_bar_chart(
         x_range=selected_pm_types,
         height=500,
         width=900,
-        title=config["title"],
+        # title=config["title"], # commented out to as to not show for paper figures
         toolbar_location="right",
         tools="pan,box_zoom,wheel_zoom,reset,save",
         background_fill_color="white",
