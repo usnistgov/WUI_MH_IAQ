@@ -1,4 +1,33 @@
-# %%
+"""
+Statistical analysis and visualization module for WUI smoke decay rate data.
+
+This script processes decay rate data from various instruments, performs statistical
+analyses (ANOVA, t-tests, and z-tests), and generates bar charts for different
+particulate matter (PM) sizes and experimental conditions.
+
+The module contains functions for:
+1. Data reading and preprocessing
+2. Baseline correction
+3. Statistical analyses (filter count, new vs used, MERV comparison)
+4. Chart creation
+5. Statistical summary generation
+
+The main processing section executes the statistical analyses and chart generation
+for PM0.4, PM1, PM2.5, and PM10 data.
+
+Requires:
+    - pandas
+    - numpy
+    - bokeh
+    - scipy
+    - metadata_utils (custom utility module)
+
+Output:
+    - Statistical analysis results (decay_statistical_analyses.txt)
+    - Statistical summary (decay_statistical_summary.txt)
+    - Bar charts for different experimental conditions (HTML files)
+"""
+
 import os
 import sys
 import pandas as pd
@@ -1252,11 +1281,13 @@ def create_transposed_bar_chart(
     # Create figure
     p = figure(
         x_range=selected_pm_types,
-        height=600,
-        width=800,
-        title=config["title"],
-        toolbar_location=None,
-        tools="",
+        height=500,
+        width=900,
+        # title=config["title"], # commented out to as to not show for paper figures
+        toolbar_location="right",
+        tools="pan,box_zoom,wheel_zoom,reset,save",
+        background_fill_color="white",
+        border_fill_color="white",
     )
 
     # Prepare data for plotting
