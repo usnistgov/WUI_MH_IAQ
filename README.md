@@ -212,23 +212,19 @@ If you use this code or data in your research, please cite:
 
 This repository is maintained for research reproducibility. For questions, issues, or collaboration inquiries:
 
-**Principal Investigator:** [Name]  
+**Principal Investigator:** Poppendieck, Dustin G. (Fed) <dustin.poppendieck@nist.gov>
 **Data Analyst:** Nathan Lima  
 **Institution:** National Institute of Standards and Technology (NIST)  
 **Contact:** nathan.lima@nist.gov
 
-## License
-
-[Specify license - typically public domain for NIST work or appropriate open-source license]
-
 ## Acknowledgments
 
-This research was conducted at the National Institute of Standards and Technology (NIST) as part of the Wildland-Urban Interface fire research program. The authors acknowledge support from [funding sources] and thank [collaborators].
+This research was conducted at the National Institute of Standards and Technology (NIST) as part of the Indoor Air Quality and Ventilation Group and Wildland-Urban Interface fire Group.
 
 ## Version History
 
 - **v1.0** (2025) - Initial release with complete analysis pipeline for burns 1-10
-- Data collection period: [dates]
+- Data collection period: April - June 2024
 - Analysis completed: 2025
 
 ---
