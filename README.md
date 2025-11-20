@@ -75,8 +75,6 @@ The study conducted multiple controlled burn experiments (Burn 1-10) in a manufa
 ### Data Processing Utilities
 - **`wui_remove_aerotrak_dup_data.py`** - Data cleaning script for removing duplicate AeroTrak timestamps
 - **`wui_mh_relay_control_log.py`** - Processing of relay control system logs for HVAC and filtration operation
-- **`wui_figure_testing.py`** - Script for testing and refining figure formatting and layout
-- **`wui_heatmap_testing.py`** - Development script for heatmap visualization approaches
 
 ## Dependencies
 
