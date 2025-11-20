@@ -10,12 +10,12 @@ This repository contains Python analysis scripts for evaluating indoor air quali
 - Spatial variation in PM concentrations across different rooms
 - Particle size distribution analysis (0.3 μm to 25 μm)
 - Decay rate characterization for different mitigation strategies
-- Filter performance evaluation (MERV 12 and MERV 13)
+- Filter performance evaluation (MERV 12A and MERV 13)
 - Compartmentalization strategy comparison
 
 ## Experimental Design
 
-The study conducted multiple controlled burn experiments (Burn 2-10) in a manufactured home test structure with the following instrumentation:
+The study conducted multiple controlled burn experiments (Burn 1-10) in a manufactured home test structure with the following instrumentation:
 
 **Monitoring Instruments:**
 - **AeroTrak 9510** - Optical particle counters in bedroom and kitchen/morning room
@@ -31,8 +31,8 @@ The study conducted multiple controlled burn experiments (Burn 2-10) in a manufa
 - Particle size distributions
 
 **Mitigation Strategies Tested:**
-- Portable air cleaners with HEPA filtration (various CADR ratings)
-- Central HVAC systems with MERV 12 and MERV 13 filters
+- Portable air cleaners with MERV filtration (various CADR ratings)
+- Central HVAC systems with MERV 12A and MERV 13 filters
 - Room compartmentalization (closed bedroom with/without filtration)
 - Multiple filter configurations (1, 2, and 4 filters)
 
@@ -105,17 +105,13 @@ datetime
 absolute_path = 'C:/path/to/your/WUI_smoke/'
 ```
 
-2. **Data Structure**: Ensure your data files are organized as follows:
+2. **Data Structure Example**: Ensure your data files are organized as follows:
 ```
 WUI_smoke/
 ├── burn_log.xlsx                    # Master burn experiment log
 ├── burn_data/
 │   ├── aerotraks/
-│   │   ├── bedroom2/all_data.xlsx
-│   │   └── kitchen/all_data.xlsx
 │   ├── quantaq/
-│   │   ├── MOD-PM-00194-[id].csv  # Bedroom sensor
-│   │   └── MOD-PM-00197-[id].csv  # Kitchen sensor
 │   ├── dusttrak/
 │   ├── smps/
 │   └── purpleair/
@@ -181,7 +177,7 @@ where:
 - Exponential curve fitting with `scipy.optimize.curve_fit`
 - Uncertainty propagation for CADR calculations
 - Multi-instrument data synchronization
-- Baseline subtraction and drift correction
+- Baseline subtraction
 
 ## Visualization
 
@@ -203,16 +199,6 @@ The analysis pipeline includes:
 - Cross-instrument validation (AeroTrak vs. SMPS, QuantAQ vs. reference instruments)
 - Relative humidity effects on optical measurements
 
-## Key Findings Applications
-
-These analysis scripts support research findings related to:
-- Effectiveness of portable air cleaners in reducing wildfire smoke PM
-- Impact of HVAC filtration on whole-house air quality
-- Benefits of room compartmentalization during smoke events
-- Particle size-dependent filtration efficiency
-- Temporal dynamics of PM infiltration and removal
-- Low-cost sensor performance for community monitoring
-
 ## Citation
 
 If you use this code or data in your research, please cite:
@@ -220,8 +206,7 @@ If you use this code or data in your research, please cite:
 [Publication details to be added upon journal acceptance]
 
 **Related Publications:**
-- NIST Technical Note series on manufactured housing and wildfire smoke
-- Indoor Air journal submissions (in preparation)
+- TBD
 
 ## Contributing
 
@@ -230,7 +215,7 @@ This repository is maintained for research reproducibility. For questions, issue
 **Principal Investigator:** [Name]  
 **Data Analyst:** Nathan Lima  
 **Institution:** National Institute of Standards and Technology (NIST)  
-**Contact:** [email]
+**Contact:** nathan.lima@nist.gov
 
 ## License
 
@@ -242,29 +227,9 @@ This research was conducted at the National Institute of Standards and Technolog
 
 ## Version History
 
-- **v1.0** (2025) - Initial release with complete analysis pipeline for burns 2-10
+- **v1.0** (2025) - Initial release with complete analysis pipeline for burns 1-10
 - Data collection period: [dates]
 - Analysis completed: 2025
-
-## Related Resources
-
-- [NIST WUI Fire Research Program](https://www.nist.gov/el/fire-research-division-73300/wildland-urban-interface-wui-fire-research)
-- [EPA Air Sensor Toolbox](https://www.epa.gov/air-sensor-toolbox)
-- [ASHRAE Standards for Indoor Air Quality](https://www.ashrae.org/)
-
-## Technical Notes
-
-### Known Issues
-- AeroTrak time synchronization requires manual adjustment per instrument
-- SMPS data requires external processing before import
-- Some burn experiments have incomplete data due to instrument malfunctions
-- Bokeh plot rendering may be slow for datasets with >100,000 points
-
-### Troubleshooting
-- **Import errors**: Ensure all dependencies are installed in the active Python environment
-- **File path errors**: Check that `absolute_path` is set correctly for your system
-- **Missing data**: Verify that all required Excel/CSV files are in the correct directories
-- **Plot display issues**: Try using `output_notebook()` for Jupyter or `output_file()` for standalone HTML
 
 ---
 
