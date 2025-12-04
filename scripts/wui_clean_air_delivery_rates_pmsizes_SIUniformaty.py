@@ -57,11 +57,14 @@ output_notebook()
 absolute_path = "C:/Users/nml/OneDrive - NIST/Documents/NIST/WUI_smoke/"
 os.chdir(absolute_path)
 
-# Import utils for metadata
+# Import utils
 script_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(script_dir)
-sys.path.append(parent_dir)
-from utils.metadata_utils import get_script_metadata  # type: ignore # noqa: E402
+grandparent_dir = os.path.dirname(parent_dir)
+sys.path.append(os.path.join(grandparent_dir, "general_utils", "scripts"))
+
+# utils
+from metadata_utils import get_script_metadata  # type: ignore[import-untyped]  # pylint: disable=import-error,wrong-import-position  # noqa: E402
 
 # SAVE FLAG - Set to True when ready to save figures
 SAVE_FIGURES = True

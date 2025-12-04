@@ -53,7 +53,6 @@ Author: Nathan Lima
 Date: 2024-2025
 """
 
-# %% RUN
 # Import needed modules
 print("Importing needed modules")
 import os
