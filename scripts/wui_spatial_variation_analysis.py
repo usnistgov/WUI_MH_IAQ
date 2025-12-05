@@ -12,6 +12,7 @@ and mitigation effectiveness across the indoor environment.
 
 Key Metrics Calculated:
     - Peak Ratio Index (PRI): Ratio of peak PM concentrations between locations
+    - CR Box Activation Ratio: Ratio of PM concentrations at CR Box activation time
     - Average Ratio: Time-averaged concentration ratio during decay period
     - Relative Standard Deviation (RSD): Coefficient of variation between locations
 
@@ -28,9 +29,10 @@ Methodology:
     2. Process time-series data from AeroTrak and QuantAQ instruments
     3. Apply instrument-specific time shifts and baseline corrections
     4. Calculate peak ratios from maximum concentrations during each burn
-    5. Calculate average ratios over 2-hour decay windows post-CR Box activation
-    6. Compute RSD to quantify temporal variability in spatial ratios
-    7. Export results to Excel with separate sheets for each instrument type
+    5. Calculate CR Box activation ratios at the moment of air cleaner turn-on
+    6. Calculate average ratios over 2-hour decay windows post-CR Box activation
+    7. Compute RSD to quantify temporal variability in spatial ratios
+    8. Export results to Excel with separate sheets for each instrument type
 
 Output Files:
     - spatial_variation_analysis.xlsx: Complete results with AeroTrak and QuantAQ sheets
@@ -545,6 +547,117 @@ def calculate_peak_ratio(peak_data, burn_id, instrument_pair, pm_size):
     return ratio
 
 
+def calculate_crbox_activation_ratio(
+    bedroom_data,
+    morning_data,
+    burn_id,
+    pm_size,
+    datetime_col_b,
+    datetime_col_m,
+):
+    """
+    Calculate concentration ratio at CR Box activation time between bedroom2 and morning room
+
+    This ratio represents the spatial variation at the moment the portable air cleaner
+    was turned on, providing insight into smoke distribution at the start of decay.
+
+    Parameters
+    ----------
+    bedroom_data : pd.DataFrame
+        Bedroom2 concentration data
+    morning_data : pd.DataFrame
+        Morning room concentration data
+    burn_id : str
+        Burn identifier (e.g., 'burn4')
+    pm_size : str
+        PM size column name (e.g., 'PM2.5 (µg/m³)')
+    datetime_col_b : str
+        Datetime column name for bedroom data
+    datetime_col_m : str
+        Datetime column name for morning room data
+
+    Returns
+    -------
+    float or None
+        Ratio of bedroom2/morning room concentration at CR Box activation time,
+        or None if data is unavailable
+    """
+    # Get burn information
+    burn_info = burn_log[burn_log["Burn ID"] == burn_id]
+
+    if burn_info.empty:
+        return None
+
+    burn_date = burn_info["Date"].iloc[0]
+    cr_box_time_str = burn_info["CR Box on"].iloc[0]
+
+    # Check if CR Box was used
+    if pd.isna(cr_box_time_str) or cr_box_time_str == "n/a":
+        return None
+
+    # Create datetime for CR Box activation
+    cr_box_time = create_naive_datetime(burn_date, cr_box_time_str)
+
+    if pd.isna(cr_box_time):
+        return None
+
+    # Filter data for the current burn date
+    burn_date_only = pd.to_datetime(burn_date).date()
+
+    bedroom_burn_data = bedroom_data[bedroom_data["Date"] == burn_date_only].copy()
+    morning_burn_data = morning_data[morning_data["Date"] == burn_date_only].copy()
+
+    if bedroom_burn_data.empty or morning_burn_data.empty:
+        return None
+
+    # Find the closest measurement to CR Box activation time (within ±5 minutes)
+    time_window = pd.Timedelta(minutes=5)
+
+    bedroom_window = bedroom_burn_data[
+        (bedroom_burn_data[datetime_col_b] >= cr_box_time - time_window)
+        & (bedroom_burn_data[datetime_col_b] <= cr_box_time + time_window)
+    ].copy()
+
+    morning_window = morning_burn_data[
+        (morning_burn_data[datetime_col_m] >= cr_box_time - time_window)
+        & (morning_burn_data[datetime_col_m] <= cr_box_time + time_window)
+    ].copy()
+
+    if bedroom_window.empty or morning_window.empty:
+        return None
+
+    # Check if PM size column exists
+    if pm_size not in bedroom_window.columns or pm_size not in morning_window.columns:
+        return None
+
+    # Ensure PM columns are numeric
+    bedroom_window[pm_size] = pd.to_numeric(bedroom_window[pm_size], errors="coerce")
+    morning_window[pm_size] = pd.to_numeric(morning_window[pm_size], errors="coerce")
+
+    # Get the measurement closest to CR Box activation time
+    bedroom_window["time_diff"] = abs(
+        (bedroom_window[datetime_col_b] - cr_box_time).dt.total_seconds()
+    )
+    morning_window["time_diff"] = abs(
+        (morning_window[datetime_col_m] - cr_box_time).dt.total_seconds()
+    )
+
+    bedroom_closest = bedroom_window.loc[bedroom_window["time_diff"].idxmin()]
+    morning_closest = morning_window.loc[morning_window["time_diff"].idxmin()]
+
+    bedroom_conc = bedroom_closest[pm_size]
+    morning_conc = morning_closest[pm_size]
+
+    # Check for valid data
+    if pd.isna(bedroom_conc) or pd.isna(morning_conc) or morning_conc <= 0:
+        return None
+
+    # Calculate ratio (bedroom2/morning room)
+    ratio = bedroom_conc / morning_conc
+
+    return ratio
+
+
 def calculate_average_ratio_and_rsd(
     bedroom_data,
     morning_data,
@@ -785,6 +898,16 @@ def analyze_spatial_variation():
                         peak_data, burn_id, "AeroTrak", pm_size
                     )
 
+                    # Calculate CR Box activation ratio
+                    crbox_ratio = calculate_crbox_activation_ratio(
+                        aerotrakb_data,
+                        aerotrakk_data,
+                        burn_id,
+                        pm_size,
+                        "Date and Time",
+                        "Date and Time",
+                    )
+
                     # Calculate average ratio and RSD
                     avg_ratio, rsd = calculate_average_ratio_and_rsd(
                         aerotrakb_data,
@@ -796,12 +919,17 @@ def analyze_spatial_variation():
                     )
 
                     # Store results if we have at least one metric
-                    if peak_ratio is not None or avg_ratio is not None:
+                    if (
+                        peak_ratio is not None
+                        or crbox_ratio is not None
+                        or avg_ratio is not None
+                    ):
                         results["AeroTrak"].append(
                             {
                                 "Burn_ID": burn_id,
                                 "PM_Size": pm_size,
                                 "Peak_Ratio_Index": peak_ratio,
+                                "CRBox_Activation_Ratio": crbox_ratio,
                                 "Average_Ratio": avg_ratio,
                                 "RSD_%": rsd,
                             }
@@ -811,11 +939,15 @@ def analyze_spatial_variation():
                         peak_str = (
                             f"{peak_ratio:.3f}" if peak_ratio is not None else "N/A"
                         )
+                        crbox_str = (
+                            f"{crbox_ratio:.3f}" if crbox_ratio is not None else "N/A"
+                        )
                         avg_str = f"{avg_ratio:.3f}" if avg_ratio is not None else "N/A"
                         rsd_str = f"{rsd:.1f}" if rsd is not None else "N/A"
 
                         print(
-                            f"    {pm_size}: R_I={peak_str}, R_ave={avg_str}, RSD={rsd_str}%"
+                            f"    {pm_size}: R_I={peak_str}, R_CR={crbox_str}, "
+                            f"R_ave={avg_str}, RSD={rsd_str}%"
                         )
                     else:
                         print(f"    {pm_size}: No valid data for ratios")
@@ -835,6 +967,16 @@ def analyze_spatial_variation():
                         peak_data, burn_id, "QuantAQ", pm_size
                     )
 
+                    # Calculate CR Box activation ratio
+                    crbox_ratio = calculate_crbox_activation_ratio(
+                        quantaqb_data,
+                        quantaqk_data,
+                        burn_id,
+                        pm_size,
+                        "timestamp_local",
+                        "timestamp_local",
+                    )
+
                     # Calculate average ratio and RSD
                     avg_ratio, rsd = calculate_average_ratio_and_rsd(
                         quantaqb_data,
@@ -846,12 +988,17 @@ def analyze_spatial_variation():
                     )
 
                     # Store results if we have at least one metric
-                    if peak_ratio is not None or avg_ratio is not None:
+                    if (
+                        peak_ratio is not None
+                        or crbox_ratio is not None
+                        or avg_ratio is not None
+                    ):
                         results["QuantAQ"].append(
                             {
                                 "Burn_ID": burn_id,
                                 "PM_Size": pm_size,
                                 "Peak_Ratio_Index": peak_ratio,
+                                "CRBox_Activation_Ratio": crbox_ratio,
                                 "Average_Ratio": avg_ratio,
                                 "RSD_%": rsd,
                             }
@@ -861,11 +1008,15 @@ def analyze_spatial_variation():
                         peak_str = (
                             f"{peak_ratio:.3f}" if peak_ratio is not None else "N/A"
                         )
+                        crbox_str = (
+                            f"{crbox_ratio:.3f}" if crbox_ratio is not None else "N/A"
+                        )
                         avg_str = f"{avg_ratio:.3f}" if avg_ratio is not None else "N/A"
                         rsd_str = f"{rsd:.1f}" if rsd is not None else "N/A"
 
                         print(
-                            f"    {pm_size}: R_I={peak_str}, R_ave={avg_str}, RSD={rsd_str}%"
+                            f"    {pm_size}: R_I={peak_str}, R_CR={crbox_str}, "
+                            f"R_ave={avg_str}, RSD={rsd_str}%"
                         )
                     else:
                         print(f"    {pm_size}: No valid data for ratios")
