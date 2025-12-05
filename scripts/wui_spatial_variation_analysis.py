@@ -135,11 +135,10 @@ INSTRUMENT_CONFIG = {
     },
 }
 
+
 # ============================================================================
 # UTILITY FUNCTIONS (from wui_clean_air_delivery_rates_pmsizes_v5.py)
 # ============================================================================
-
-
 def apply_time_shift(df, instrument, burn_date):
     """Apply time shift based on instrument configuration
 
@@ -206,8 +205,6 @@ def calculate_rolling_average_burn3(data):
 # ============================================================================
 # DATA PROCESSING FUNCTIONS
 # ============================================================================
-
-
 def process_aerotrak_data(file_path, instrument="AeroTrakB"):
     """Process AeroTrak data with complete conversion from particle counts to mass concentration"""
     # Load the AeroTrak data from the Excel file
@@ -507,8 +504,6 @@ def load_peak_concentrations():
 # ============================================================================
 # RATIO CALCULATION FUNCTIONS
 # ============================================================================
-
-
 def calculate_peak_ratio(peak_data, burn_id, instrument_pair, pm_size):
     """Calculate peak concentration ratio between bedroom2 and morning room"""
 
@@ -792,8 +787,6 @@ def calculate_average_ratio_and_rsd(
 # ============================================================================
 # MAIN ANALYSIS FUNCTION
 # ============================================================================
-
-
 def analyze_spatial_variation():
     """Main function to analyze spatial variation for all burns and instruments"""
 
@@ -1118,7 +1111,6 @@ def analyze_spatial_variation():
 # ============================================================================
 # SCRIPT EXECUTION
 # ============================================================================
-
 if __name__ == "__main__":
     # Run the analysis
     aerotrak_results, quantaq_results = analyze_spatial_variation()
