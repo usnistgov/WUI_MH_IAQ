@@ -1,17 +1,54 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 WUI Spatial Variation Analysis Script
 =====================================
-Analyzes AeroTrak and QuantAQ data to evaluate spatial variation within the test house
-Calculates Peak Ratio Index, Average Ratio, and RSD for bedroom2 vs morning room
+
+This script quantifies spatial variability of particulate matter (PM) concentrations
+between two locations within a manufactured home test structure during wildfire smoke
+infiltration experiments. The analysis compares bedroom2 (reference location) versus
+the morning room (kitchen area) to characterize the uniformity of smoke distribution
+and mitigation effectiveness across the indoor environment.
+
+Key Metrics Calculated:
+    - Peak Ratio Index (PRI): Ratio of peak PM concentrations between locations
+    - Average Ratio: Time-averaged concentration ratio during decay period
+    - Relative Standard Deviation (RSD): Coefficient of variation between locations
+
+Analysis Features:
+    - Multi-instrument processing (AeroTrak optical particle counters, QuantAQ sensors)
+    - Size-resolved PM analysis (PM0.5, PM1, PM2.5, PM3, PM5, PM10, PM25)
+    - Time-synchronized data alignment with burn experiment timeline
+    - CR Box (portable air cleaner) activation-based analysis windows
+    - Baseline correction and data quality filtering
+    - Statistical outlier removal (ratios outside 0.1-10 range)
+
+Methodology:
+    1. Load peak concentration data from pre-processed Excel files
+    2. Process time-series data from AeroTrak and QuantAQ instruments
+    3. Apply instrument-specific time shifts and baseline corrections
+    4. Calculate peak ratios from maximum concentrations during each burn
+    5. Calculate average ratios over 2-hour decay windows post-CR Box activation
+    6. Compute RSD to quantify temporal variability in spatial ratios
+    7. Export results to Excel with separate sheets for each instrument type
+
+Output Files:
+    - spatial_variation_analysis.xlsx: Complete results with AeroTrak and QuantAQ sheets
+
+Applications:
+    - Assess smoke mixing and stratification within the test house
+    - Evaluate spatial uniformity assumptions for CADR calculations
+    - Identify room-to-room transport characteristics
+    - Validate single-point measurement representativeness
 
 Author: Nathan Lima
+Institution: National Institute of Standards and Technology (NIST)
 Date: 2025
 """
 
 import os
 import warnings
+import traceback
 import pandas as pd
 import numpy as np
 
@@ -262,19 +299,18 @@ def process_aerotrak_data(file_path, instrument="AeroTrakB"):
         "PM25 (µg/m³)",
     ]
     # Calculate cumulative PM concentrations
-    for i in range(len(cumulative_columns)):
+    for i, cumul_col in enumerate(cumulative_columns):
         if i == 0 and len(pm_columns) > 0:
-            aerotrak_data[cumulative_columns[i]] = pd.to_numeric(
+            aerotrak_data[cumul_col] = pd.to_numeric(
                 aerotrak_data[pm_columns[i]], errors="coerce"
             )
         elif i < len(pm_columns):
             # Sum current PM column with the previous cumulative column
-            aerotrak_data[cumulative_columns[i]] = pd.to_numeric(
+            prev_cumul_col = cumulative_columns[i - 1]
+            aerotrak_data[cumul_col] = pd.to_numeric(
                 aerotrak_data[pm_columns[i]], errors="coerce"
             ).add(
-                pd.to_numeric(
-                    aerotrak_data[cumulative_columns[i - 1]], errors="coerce"
-                ),
+                pd.to_numeric(aerotrak_data[prev_cumul_col], errors="coerce"),
                 fill_value=0,
             )
     # Replace invalid entries with NaN for numeric columns only
@@ -461,7 +497,7 @@ def load_peak_concentrations():
             print(f"  '{col}'")
 
         return peak_data
-    except Exception as e:
+    except (FileNotFoundError, KeyError, ValueError) as e:
         print(f"Error loading peak concentrations: {e}")
         return None
 
@@ -677,17 +713,17 @@ def analyze_spatial_variation():
         print(f"AeroTrakK data loaded: {aerotrakk_data.shape}")
 
         # Check for required columns
-        print(
-            f"AeroTrakB PM columns: {[col for col in aerotrakb_data.columns if 'PM' in col and '(µg/m³)' in col]}"
-        )
-        print(
-            f"AeroTrakK PM columns: {[col for col in aerotrakk_data.columns if 'PM' in col and '(µg/m³)' in col]}"
-        )
+        aerotrakb_pm_cols = [
+            col for col in aerotrakb_data.columns if "PM" in col and "(µg/m³)" in col
+        ]
+        aerotrakk_pm_cols = [
+            col for col in aerotrakk_data.columns if "PM" in col and "(µg/m³)" in col
+        ]
+        print(f"AeroTrakB PM columns: {aerotrakb_pm_cols}")
+        print(f"AeroTrakK PM columns: {aerotrakk_pm_cols}")
 
-    except Exception as e:
+    except (FileNotFoundError, KeyError, ValueError, pd.errors.ParserError) as e:
         print(f"Error loading AeroTrak data: {e}")
-        import traceback
-
         traceback.print_exc()
         aerotrakb_data = None
         aerotrakk_data = None
@@ -706,10 +742,8 @@ def analyze_spatial_variation():
         )
         print(f"QuantAQB data loaded: {quantaqb_data.shape}")
         print(f"QuantAQK data loaded: {quantaqk_data.shape}")
-    except Exception as e:
+    except (FileNotFoundError, KeyError, ValueError, pd.errors.ParserError) as e:
         print(f"Error loading QuantAQ data: {e}")
-        import traceback
-
         traceback.print_exc()
         quantaqb_data = None
         quantaqk_data = None
@@ -786,7 +820,7 @@ def analyze_spatial_variation():
                     else:
                         print(f"    {pm_size}: No valid data for ratios")
 
-                except Exception as e:
+                except (KeyError, ValueError, TypeError, IndexError) as e:
                     print(f"    Error processing {pm_size}: {str(e)[:100]}")
 
         # Process QuantAQ data for this burn (only for burns 4-10)
@@ -836,7 +870,7 @@ def analyze_spatial_variation():
                     else:
                         print(f"    {pm_size}: No valid data for ratios")
 
-                except Exception as e:
+                except (KeyError, ValueError, TypeError, IndexError) as e:
                     print(f"    Error processing {pm_size}: {str(e)[:100]}")
 
     # Create DataFrames from results
