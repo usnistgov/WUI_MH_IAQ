@@ -1058,6 +1058,7 @@ def analyze_spatial_variation():
 
         # Calculate means only for non-null values
         peak_mean = aerotrak_df["Peak_Ratio_Index"].dropna().mean()
+        crbox_mean = aerotrak_df["CRBox_Activation_Ratio"].dropna().mean()
         avg_mean = aerotrak_df["Average_Ratio"].dropna().mean()
         rsd_mean = aerotrak_df["RSD_%"].dropna().mean()
 
@@ -1066,6 +1067,11 @@ def analyze_spatial_variation():
             f"  Mean Peak Ratio: {peak_mean:.3f}"
             if not pd.isna(peak_mean)
             else "  Mean Peak Ratio: N/A"
+        )
+        print(
+            f"  Mean CR Box Activation Ratio: {crbox_mean:.3f}"
+            if not pd.isna(crbox_mean)
+            else "  Mean CR Box Activation Ratio: N/A"
         )
         print(
             f"  Mean Average Ratio: {avg_mean:.3f}"
@@ -1085,6 +1091,7 @@ def analyze_spatial_variation():
 
         # Calculate means only for non-null values
         peak_mean = quantaq_df["Peak_Ratio_Index"].dropna().mean()
+        crbox_mean = quantaq_df["CRBox_Activation_Ratio"].dropna().mean()
         avg_mean = quantaq_df["Average_Ratio"].dropna().mean()
         rsd_mean = quantaq_df["RSD_%"].dropna().mean()
 
@@ -1093,6 +1100,11 @@ def analyze_spatial_variation():
             f"  Mean Peak Ratio: {peak_mean:.3f}"
             if not pd.isna(peak_mean)
             else "  Mean Peak Ratio: N/A"
+        )
+        print(
+            f"  Mean CR Box Activation Ratio: {crbox_mean:.3f}"
+            if not pd.isna(crbox_mean)
+            else "  Mean CR Box Activation Ratio: N/A"
         )
         print(
             f"  Mean Average Ratio: {avg_mean:.3f}"
