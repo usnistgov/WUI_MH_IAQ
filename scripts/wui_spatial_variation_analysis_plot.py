@@ -31,8 +31,8 @@ Methodology:
     - X-axis represents number of CR Boxes operating (1, 2, or 4 units)
     - Y-axis shows concentration ratios (bedroom2/morning room)
     - Scatter points show measured ratios for each burn
-    - Colors distinguish different burns (burn2, burn4, burn9)
-    - Marker shapes distinguish instruments (AeroTrak vs QuantAQ)
+    - Colors distinguish different ratio types (Peak, CR Box Activation, Average)
+    - Marker shapes distinguish instruments (AeroTrak circles vs QuantAQ squares)
     - Fitted curves use spline interpolation (or quadratic fallback)
     - Ratio = 1.0 indicates perfect spatial uniformity
 
@@ -45,9 +45,11 @@ import os
 import sys
 import pandas as pd
 from bokeh.plotting import figure, output_file, save
-from bokeh.models import Span
+from bokeh.models import Span, Div
+from bokeh.layouts import column
 import numpy as np
 from scipy.interpolate import interp1d, make_interp_spline
+from scipy import stats
 
 
 # ============================================================================
@@ -90,7 +92,9 @@ sys.path.append(UTILS_PATH)
 # Import metadata utilities
 # pylint: disable=import-error, wrong-import-position
 try:
-    from metadata_utils import get_script_metadata
+    from metadata_utils import (
+        get_script_metadata,
+    )  # type: ignore[import-untyped]  # pylint: disable=import-error,wrong-import-position  # noqa: E402
 
     METADATA_AVAILABLE = True
 except ImportError:
@@ -113,11 +117,18 @@ OUTPUT_DIR = os.path.join(BASE_DIR, "Paper_figures")
 BURN_IDS = ["burn2", "burn4", "burn9"]
 BURN_TO_CRBOX_COUNT = {"burn2": 4, "burn4": 1, "burn9": 2}
 
-# Color mapping for burns (each burn gets a unique color)
-BURN_COLORS = {
-    "burn2": "#1f77b4",  # Blue
-    "burn4": "#ff7f0e",  # Orange
-    "burn9": "#2ca02c",  # Green
+# Color mapping for ratio types (each ratio gets a unique color)
+RATIO_COLORS = {
+    "Peak_Ratio_Index": "#d62728",  # Red
+    "CRBox_Activation_Ratio": "#1f77b4",  # Blue
+    "Average_Ratio": "#2ca02c",  # Green
+}
+
+# Display names for ratios in legend
+RATIO_DISPLAY_NAMES = {
+    "Peak_Ratio_Index": "Peak Ratio",
+    "CRBox_Activation_Ratio": "CR Box Activation",
+    "Average_Ratio": "Average Ratio",
 }
 
 # Marker mapping for instruments (each instrument gets a unique marker)
@@ -241,6 +252,121 @@ def create_fitted_curve(x_data, y_data, num_points=100):
         return None, None
 
 
+def perform_linear_fit(x_data, y_data):
+    """Perform linear regression with full statistics"""
+    try:
+        if len(x_data) < 2:
+            return None
+        x, y = np.array(x_data), np.array(y_data)
+        n = len(x)
+        slope, intercept, r_value, p_value, slope_stderr = stats.linregress(x, y)
+        r_squared = r_value**2
+        y_pred = slope * x + intercept
+        ss_res = np.sum((y - y_pred) ** 2)
+        x_mean, ss_x = np.mean(x), np.sum((x - x_mean) ** 2)
+        mse = ss_res / (n - 2) if n > 2 else 0
+        intercept_stderr = np.sqrt(mse * (1 / n + x_mean**2 / ss_x)) if ss_x > 0 else 0
+        adj_r_squared = 1 - (1 - r_squared) * (n - 1) / (n - 2) if n > 2 else r_squared
+        aic = 2 * 2 + n * np.log(ss_res / n) if ss_res > 0 else np.inf
+        return {
+            "type": "linear",
+            "equation": f"y = {slope:.4f}x + {intercept:.4f}",
+            "slope": slope,
+            "intercept": intercept,
+            "slope_stderr": slope_stderr,
+            "intercept_stderr": intercept_stderr,
+            "r_squared": r_squared,
+            "adj_r_squared": adj_r_squared,
+            "aic": aic,
+            "n_points": n,
+        }
+    except:
+        return None
+
+
+def perform_polynomial_fit(x_data, y_data, degree=2):
+    """Perform polynomial regression with full statistics"""
+    try:
+        if len(x_data) < degree + 1:
+            return None
+        x, y = np.array(x_data), np.array(y_data)
+        n = len(x)
+        coeffs, cov_matrix = np.polyfit(x, y, degree, cov=True)
+        coeff_stderr = np.sqrt(np.diag(cov_matrix))
+        y_pred = np.polyval(coeffs, x)
+        ss_res, ss_tot = np.sum((y - y_pred) ** 2), np.sum((y - np.mean(y)) ** 2)
+        r_squared = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0
+        k = degree + 1
+        adj_r_squared = 1 - (1 - r_squared) * (n - 1) / (n - k) if n > k else r_squared
+        aic = 2 * k + n * np.log(ss_res / n) if ss_res > 0 else np.inf
+        terms = []
+        for i, coeff in enumerate(coeffs):
+            power = degree - i
+            if abs(coeff) > 1e-10:
+                if power == 0:
+                    terms.append(f"{coeff:.4f}")
+                elif power == 1:
+                    terms.append(f"{coeff:.4f}x")
+                else:
+                    terms.append(f"{coeff:.4f}x^{power}")
+        equation = "y = " + " + ".join(terms)
+        equation = equation.replace("+ -", "- ")
+        degree_names = {2: "quadratic", 3: "cubic"}
+        fit_type = degree_names.get(degree, f"poly_deg{degree}")
+        result = {
+            "type": fit_type,
+            "degree": degree,
+            "equation": equation,
+            "coefficients": coeffs.tolist(),
+            "coeff_stderr": coeff_stderr.tolist(),
+            "r_squared": r_squared,
+            "adj_r_squared": adj_r_squared,
+            "aic": aic,
+            "n_points": n,
+        }
+        if degree == 2:
+            result.update(
+                {
+                    "a": coeffs[0],
+                    "b": coeffs[1],
+                    "c": coeffs[2],
+                    "a_stderr": coeff_stderr[0],
+                    "b_stderr": coeff_stderr[1],
+                    "c_stderr": coeff_stderr[2],
+                }
+            )
+        return result
+    except:
+        return None
+
+
+def select_best_fit(x_data, y_data):
+    """Try multiple fits and select best using AIC"""
+    n = len(x_data)
+    if n < 2:
+        return None
+    fits = []
+    linear_fit = perform_linear_fit(x_data, y_data)
+    if linear_fit:
+        fits.append(linear_fit)
+    if n >= 3:
+        quad_fit = perform_polynomial_fit(x_data, y_data, degree=2)
+        if quad_fit:
+            fits.append(quad_fit)
+    if n >= 5:
+        cubic_fit = perform_polynomial_fit(x_data, y_data, degree=3)
+        if cubic_fit:
+            fits.append(cubic_fit)
+    if not fits:
+        return None
+    best_fit = min(fits, key=lambda f: f["aic"])
+    best_fit["comparison"] = {
+        "types_tested": [f["type"] for f in fits],
+        "aic_values": {f["type"]: f["aic"] for f in fits},
+    }
+    return best_fit
+
+
 def create_spatial_variation_plot(
     aerotrak_data, quantaq_data, pm_size, burn_to_crbox_map
 ):
@@ -273,9 +399,17 @@ def create_spatial_variation_plot(
         height=600,
     )
 
-    # Plot data for each ratio type
+    # Track legend entries and fit info
+    legend_added = set()
+    fit_info = {}
+
+    # Plot data for each ratio type (colored by ratio)
     for ratio in RATIO_METRICS:
-        # Process each instrument separately
+        # Get color for this ratio type
+        ratio_color = RATIO_COLORS.get(ratio, "black")
+        ratio_display = RATIO_DISPLAY_NAMES.get(ratio, ratio)
+
+        # Process each instrument separately (different marker shapes)
         for device_data, device_name in [
             (aerotrak_data, "AeroTrak"),
             (quantaq_data, "QuantAQ"),
@@ -295,7 +429,10 @@ def create_spatial_variation_plot(
             all_x = []
             all_y = []
 
-            # Plot individual data points, colored by burn
+            # Track if we've added legend for this combination
+            combo_key = (ratio, device_name)
+
+            # Plot individual data points
             for burn_id in BURN_IDS:
                 burn_data = device_data[device_data["Burn_ID"] == burn_id]
 
@@ -315,25 +452,22 @@ def create_spatial_variation_plot(
                 if pd.isna(x_val) or pd.isna(y_val):
                     continue
 
-                # Get color for this burn
-                color = BURN_COLORS.get(burn_id, "black")
+                # Create scatter plot kwargs
+                scatter_kwargs = {
+                    "x": [x_val],
+                    "y": [y_val],
+                    "color": ratio_color,
+                    "marker": marker,
+                    "size": 10,
+                    "alpha": 0.7,
+                }
 
-                # Create legend label (only for first ratio to avoid duplicates)
-                if ratio == RATIO_METRICS[0]:
-                    legend_label = f"{device_name} - {burn_id}"
-                else:
-                    legend_label = None
+                # Add legend label for first data point of each ratio-instrument combination
+                if combo_key not in legend_added:
+                    scatter_kwargs["legend_label"] = f"{ratio_display} - {device_name}"
+                    legend_added.add(combo_key)
 
-                # Plot scatter point
-                p.scatter(
-                    [x_val],
-                    [y_val],
-                    legend_label=legend_label,
-                    color=color,
-                    marker=marker,
-                    size=10,
-                    alpha=0.7,
-                )
+                p.scatter(**scatter_kwargs)
 
                 # Collect for fitting
                 all_x.append(x_val)
@@ -348,21 +482,44 @@ def create_spatial_variation_plot(
                 x_sorted = x_array[sort_idx]
                 y_sorted = y_array[sort_idx]
 
+                # Select best statistical fit
+                best_fit = select_best_fit(x_sorted, y_sorted)
+
+                # Create smooth curve for visualization
                 x_fit, y_fit = create_fitted_curve(x_sorted, y_sorted)
                 if x_fit is not None and y_fit is not None:
-                    # Use same color as the dominant burn or a neutral color
-                    # For simplicity, use a muted version of the instrument color
-                    fit_color = "gray" if device_name == "AeroTrak" else "darkgray"
-
                     # Plot fit line WITHOUT adding to legend
+                    # Use same color as data points but more transparent
                     p.line(
                         x_fit,
                         y_fit,
-                        color=fit_color,
+                        color=ratio_color,
                         line_width=2,
                         alpha=0.3,
                         line_dash="dashed",
                     )
+
+                    # Store fit info
+                    fit_key = f"{ratio_display} - {device_name}"
+                    fit_info[fit_key] = {"n_points": len(all_x), "best_fit": best_fit}
+
+                    # Print fit info
+                    if best_fit:
+                        eq = best_fit["equation"]
+                        r2 = best_fit["r_squared"]
+                        adj_r2 = best_fit["adj_r_squared"]
+                        ftype = best_fit["type"]
+                        print(
+                            f"    ✓ {fit_key}: {eq}, R²={r2:.4f} (adj. R²={adj_r2:.4f}) [{ftype}]"
+                        )
+                else:
+                    print(
+                        f"    ✗ {ratio_display} - {device_name}: Failed to create curve"
+                    )
+            elif len(all_x) > 0:
+                print(
+                    f"    ✗ {ratio_display} - {device_name}: Insufficient data ({len(all_x)} pts)"
+                )
 
     # Customize x-axis ticks and labels
     p.xaxis.ticker = X_AXIS_TICKS
@@ -383,7 +540,7 @@ def create_spatial_variation_plot(
     )
     p.add_layout(uniform_line)
 
-    return p
+    return p, fit_info
 
 
 # ============================================================================
@@ -412,6 +569,14 @@ def main():
     # Create output directory if it doesn't exist
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     print(f"\nOutput directory: {OUTPUT_DIR}")
+
+    # Get script metadata
+    if METADATA_AVAILABLE:
+        metadata = get_script_metadata()
+        print("Metadata loaded successfully")
+    else:
+        metadata = "Metadata unavailable"
+        print("Metadata not available")
 
     # Load data
     print(f"\nLoading data from: {EXCEL_FILE_PATH}")
@@ -453,47 +618,91 @@ def main():
         print(f"  QuantAQ data points: {len(quantaq_data)}")
 
         # Create plot
-        p = create_spatial_variation_plot(
+        p, fit_info = create_spatial_variation_plot(
             aerotrak_data, quantaq_data, pm_size, BURN_TO_CRBOX_COUNT
         )
+
+        # Format fit information for metadata (FIRST)
+        fit_metadata_lines = ["<strong>Fitted Curves Information:</strong><br><br>"]
+        if fit_info:
+            for fit_key, info in sorted(fit_info.items()):
+                n_pts = info["n_points"]
+                best_fit = info.get("best_fit")
+
+                if best_fit:
+                    ftype = best_fit["type"]
+                    eq = best_fit["equation"]
+                    r2 = best_fit["r_squared"]
+                    adj_r2 = best_fit["adj_r_squared"]
+
+                    fit_metadata_lines.append(
+                        f"<strong>{fit_key}:</strong> {n_pts} data points<br>"
+                        f"&nbsp;&nbsp;&nbsp;&nbsp;<strong>{ftype.capitalize()} fit:</strong> {eq}<br>"
+                        f"&nbsp;&nbsp;&nbsp;&nbsp;R² = {r2:.4f}, Adjusted R² = {adj_r2:.4f}<br>"
+                    )
+
+                    # Add parameters with uncertainties
+                    if ftype == "linear":
+                        slope, intercept = best_fit["slope"], best_fit["intercept"]
+                        slope_err, int_err = (
+                            best_fit["slope_stderr"],
+                            best_fit["intercept_stderr"],
+                        )
+                        fit_metadata_lines.append(
+                            f"&nbsp;&nbsp;&nbsp;&nbsp;Parameters: slope = {slope:.4f} ± {slope_err:.4f}, "
+                            f"intercept = {intercept:.4f} ± {int_err:.4f}<br>"
+                        )
+                    elif ftype == "quadratic":
+                        a, b, c = best_fit["a"], best_fit["b"], best_fit["c"]
+                        a_err, b_err, c_err = (
+                            best_fit["a_stderr"],
+                            best_fit["b_stderr"],
+                            best_fit["c_stderr"],
+                        )
+                        fit_metadata_lines.append(
+                            f"&nbsp;&nbsp;&nbsp;&nbsp;Parameters: a = {a:.4f} ± {a_err:.4f}, "
+                            f"b = {b:.4f} ± {b_err:.4f}, c = {c:.4f} ± {c_err:.4f}<br>"
+                        )
+
+                    # Add comparison info
+                    if "comparison" in best_fit:
+                        comp = best_fit["comparison"]
+                        tested = ", ".join(comp["types_tested"])
+                        aic_vals = comp["aic_values"]
+                        aic_str = ", ".join(
+                            [f"{k}: {v:.1f}" for k, v in aic_vals.items()]
+                        )
+                        fit_metadata_lines.append(
+                            f"&nbsp;&nbsp;&nbsp;&nbsp;<em>Fits compared: {tested} (AIC: {aic_str})</em><br>"
+                        )
+
+                    fit_metadata_lines.append("<br>")
+                else:
+                    fit_metadata_lines.append(
+                        f"<strong>{fit_key}:</strong> {n_pts} pts (fit unavailable)<br><br>"
+                    )
+        else:
+            fit_metadata_lines.append("No fits created for this PM size.<br>")
+
+        fit_metadata = "".join(fit_metadata_lines)
+
+        # Create metadata div with FITS FIRST, then script info
+        div_text = (
+            f'<div style="font-size: 10pt; font-weight: normal;">'
+            f"{fit_metadata}<br><hr><br>{metadata}</div>"
+        )
+        metadata_div = Div(text=div_text, width=800)
+
+        # Combine plot and metadata
+        layout = column(p, metadata_div)
 
         # Save figure
         output_filename = f"{pm_size.replace(' ', '_').replace('/', '_')}.html"
         output_path = os.path.join(OUTPUT_DIR, output_filename)
 
         output_file(output_path)
-        save(p)
+        save(layout)
         print(f"  Saved plot to: {output_path}")
-
-        # Add metadata to HTML file for reproducibility
-        if METADATA_AVAILABLE:
-            try:
-                metadata = get_script_metadata(__file__)
-
-                # Read the HTML file
-                with open(output_path, "r", encoding="utf-8") as f:
-                    html_content = f.read()
-
-                # Add metadata as HTML comment before closing </body> tag
-                metadata_comment = f"\n<!-- Script Metadata:\n{metadata}\n-->\n"
-
-                # Insert before </body> or at the end if no </body>
-                if "</body>" in html_content:
-                    html_content = html_content.replace(
-                        "</body>", f"{metadata_comment}</body>"
-                    )
-                else:
-                    html_content += metadata_comment
-
-                # Write back
-                with open(output_path, "w", encoding="utf-8") as f:
-                    f.write(html_content)
-
-                print("  Added metadata to HTML file")
-            except (OSError, RuntimeError, ValueError, TypeError) as e:
-                print(f"  Warning: Could not add metadata to HTML file: {e}")
-        else:
-            print("  Metadata not available (metadata_utils not imported)")
 
     print("\n" + "=" * 80)
     print("PLOTTING COMPLETE")
