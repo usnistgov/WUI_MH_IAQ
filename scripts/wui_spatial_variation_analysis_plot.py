@@ -17,6 +17,7 @@ Key Features:
     - Generates size-resolved plots for PM1, PM2.5, and PM10
     - Fits smooth curves to data for trend analysis
     - Embeds script metadata into HTML output for reproducibility
+    - Automatically detects desktop vs laptop system for file paths
 
 Input:
     - spatial_variation_analysis.xlsx: Excel file with AeroTrak and QuantAQ sheets
@@ -30,6 +31,8 @@ Methodology:
     - X-axis represents number of CR Boxes operating (1, 2, or 4 units)
     - Y-axis shows concentration ratios (bedroom2/morning room)
     - Scatter points show measured ratios for each burn
+    - Colors distinguish different burns (burn2, burn4, burn9)
+    - Marker shapes distinguish instruments (AeroTrak vs QuantAQ)
     - Fitted curves use spline interpolation (or quadratic fallback)
     - Ratio = 1.0 indicates perfect spatial uniformity
 
@@ -48,25 +51,56 @@ from scipy.interpolate import interp1d, make_interp_spline
 
 
 # ============================================================================
-# PATH SETUP AND IMPORTS
+# SYSTEM DETECTION AND PATH SETUP
 # ============================================================================
 
-# Add general_utils to system path for metadata utilities
-script_dir = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.dirname(script_dir)
-grandparent_dir = os.path.dirname(parent_dir)
-sys.path.append(os.path.join(grandparent_dir, "general_utils", "scripts"))
+
+def detect_system():
+    """
+    Detect which system the script is running on
+
+    Returns
+    -------
+    str
+        'desktop' if running on desktop computer with OneDrive
+        'laptop' if running on laptop computer
+    """
+    desktop_onedrive_path = r"C:\Users\nml\OneDrive - NIST"
+    if os.path.exists(desktop_onedrive_path):
+        return "desktop"
+    return "laptop"
+
+
+# Detect system and set paths accordingly
+SYSTEM = detect_system()
+
+if SYSTEM == "desktop":
+    BASE_DIR = r"C:\Users\nml\OneDrive - NIST\Documents\NIST\WUI_smoke"
+    SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+    PARENT_DIR = os.path.dirname(SCRIPT_DIR)
+    GRANDPARENT_DIR = os.path.dirname(PARENT_DIR)
+    UTILS_PATH = os.path.join(GRANDPARENT_DIR, "general_utils", "scripts")
+else:  # laptop
+    BASE_DIR = r"C:\Users\Nathan\Documents\NIST\WUI_smoke"
+    UTILS_PATH = r"C:\Users\Nathan\Documents\GitHub\python_coding\general_utils\scripts"
+
+# Add utils to path
+sys.path.append(UTILS_PATH)
 
 # Import metadata utilities
 # pylint: disable=import-error, wrong-import-position
-from metadata_utils import get_script_metadata
+try:
+    from metadata_utils import get_script_metadata
+
+    METADATA_AVAILABLE = True
+except ImportError:
+    METADATA_AVAILABLE = False
+    print("Warning: metadata_utils not available, metadata will not be added to plots")
+
 
 # ============================================================================
 # CONFIGURATION
 # ============================================================================
-
-# Base directory for all WUI smoke data
-BASE_DIR = r"C:\Users\nml\OneDrive - NIST\Documents\NIST\WUI_smoke"
 
 # Input file path - Excel file with spatial variation analysis results
 EXCEL_FILE_PATH = os.path.join(BASE_DIR, "burn_data", "spatial_variation_analysis.xlsx")
@@ -78,6 +112,19 @@ OUTPUT_DIR = os.path.join(BASE_DIR, "Paper_figures")
 # burn2: 4 CR Boxes, burn4: 1 CR Box, burn9: 2 CR Boxes
 BURN_IDS = ["burn2", "burn4", "burn9"]
 BURN_TO_CRBOX_COUNT = {"burn2": 4, "burn4": 1, "burn9": 2}
+
+# Color mapping for burns (each burn gets a unique color)
+BURN_COLORS = {
+    "burn2": "#1f77b4",  # Blue
+    "burn4": "#ff7f0e",  # Orange
+    "burn9": "#2ca02c",  # Green
+}
+
+# Marker mapping for instruments (each instrument gets a unique marker)
+INSTRUMENT_MARKERS = {
+    "AeroTrak": "circle",
+    "QuantAQ": "square",
+}
 
 # PM sizes to create plots for (QuantAQ sizes)
 PM_SIZES = ["PM1 (µg/m³)", "PM2.5 (µg/m³)", "PM10 (µg/m³)"]
@@ -164,16 +211,28 @@ def create_fitted_curve(x_data, y_data, num_points=100):
     - Returns None, None if fitting fails
     """
     try:
+        # Need at least 3 unique x values for interpolation
+        if len(x_data) < 3:
+            return None, None
+
         x_fit = np.linspace(x_data.min(), x_data.max(), num_points)
 
         try:
             # Try cubic spline for smooth curve
             f = make_interp_spline(x_data, y_data, k=3)
             y_fit = f(x_fit)
-        except ValueError:
+        except (ValueError, TypeError):
             # Fallback to quadratic fit if spline fails
-            f = interp1d(x_data, y_data, kind="quadratic")
-            y_fit = f(x_fit)
+            try:
+                f = interp1d(x_data, y_data, kind="quadratic")
+                y_fit = f(x_fit)
+            except (ValueError, TypeError):
+                # If quadratic also fails, try linear
+                try:
+                    f = interp1d(x_data, y_data, kind="linear")
+                    y_fit = f(x_fit)
+                except (ValueError, TypeError):
+                    return None, None
 
         return x_fit, y_fit
 
@@ -214,67 +273,94 @@ def create_spatial_variation_plot(
         height=600,
     )
 
-    # Define colors and markers for each ratio type
-    ratio_styles = {
-        "Peak_Ratio_Index": {"color": "red", "marker": "circle"},
-        "CRBox_Activation_Ratio": {"color": "blue", "marker": "square"},
-        "Average_Ratio": {"color": "green", "marker": "triangle"},
-    }
+    # Plot data for each ratio type
+    for ratio in RATIO_METRICS:
+        # Process each instrument separately
+        for device_data, device_name in [
+            (aerotrak_data, "AeroTrak"),
+            (quantaq_data, "QuantAQ"),
+        ]:
+            if device_data.empty:
+                continue
 
-    # Plot data for each instrument and ratio type
-    for device_data, device_name in [
-        (aerotrak_data, "AeroTrak"),
-        (quantaq_data, "QuantAQ"),
-    ]:
-        if device_data.empty:
-            print(f"  No {device_name} data available for {pm_size}")
-            continue
-
-        for ratio in RATIO_METRICS:
             # Skip if ratio column doesn't exist or has no valid data
             if ratio not in device_data.columns:
                 print(f"  Warning: {ratio} not found in {device_name} data")
                 continue
 
-            # Map burn IDs to CR Box counts for x-axis
-            x = device_data["Burn_ID"].map(burn_to_crbox_map)
-            y = device_data[ratio]
+            # Get marker shape for this instrument
+            marker = INSTRUMENT_MARKERS.get(device_name, "circle")
 
-            # Remove NaN values
-            valid_mask = ~(x.isna() | y.isna())
-            x = x[valid_mask]
-            y = y[valid_mask]
+            # Collect all data points for this instrument and ratio for fitting
+            all_x = []
+            all_y = []
 
-            if len(x) == 0:
-                print(f"  No valid data for {device_name} {ratio}")
-                continue
+            # Plot individual data points, colored by burn
+            for burn_id in BURN_IDS:
+                burn_data = device_data[device_data["Burn_ID"] == burn_id]
 
-            # Get style for this ratio type
-            style = ratio_styles.get(ratio, {"color": "black", "marker": "circle"})
+                if burn_data.empty:
+                    continue
 
-            # Plot scatter points
-            legend_label = f"{device_name} - {ratio.replace('_', ' ')}"
-            p.scatter(
-                x,
-                y,
-                legend_label=legend_label,
-                color=style["color"],
-                marker=style["marker"],
-                size=10,
-                alpha=0.7,
-            )
+                # Map burn ID to CR Box count for x-axis
+                x_val = burn_to_crbox_map.get(burn_id)
+                y_val = burn_data[ratio].values
 
-            # Add fitted curve if we have enough points
-            if len(x) >= 3:
-                x_fit, y_fit = create_fitted_curve(x.values, y.values)
+                if x_val is None or len(y_val) == 0:
+                    continue
+
+                y_val = y_val[0]  # Get first value
+
+                # Skip NaN values
+                if pd.isna(x_val) or pd.isna(y_val):
+                    continue
+
+                # Get color for this burn
+                color = BURN_COLORS.get(burn_id, "black")
+
+                # Create legend label (only for first ratio to avoid duplicates)
+                if ratio == RATIO_METRICS[0]:
+                    legend_label = f"{device_name} - {burn_id}"
+                else:
+                    legend_label = None
+
+                # Plot scatter point
+                p.scatter(
+                    [x_val],
+                    [y_val],
+                    legend_label=legend_label,
+                    color=color,
+                    marker=marker,
+                    size=10,
+                    alpha=0.7,
+                )
+
+                # Collect for fitting
+                all_x.append(x_val)
+                all_y.append(y_val)
+
+            # Add fitted curve for this instrument and ratio (if we have enough points)
+            if len(all_x) >= 2:  # Need at least 2 points
+                # Convert to numpy arrays and sort by x
+                x_array = np.array(all_x)
+                y_array = np.array(all_y)
+                sort_idx = np.argsort(x_array)
+                x_sorted = x_array[sort_idx]
+                y_sorted = y_array[sort_idx]
+
+                x_fit, y_fit = create_fitted_curve(x_sorted, y_sorted)
                 if x_fit is not None and y_fit is not None:
+                    # Use same color as the dominant burn or a neutral color
+                    # For simplicity, use a muted version of the instrument color
+                    fit_color = "gray" if device_name == "AeroTrak" else "darkgray"
+
+                    # Plot fit line WITHOUT adding to legend
                     p.line(
                         x_fit,
                         y_fit,
-                        legend_label=f"{legend_label} (fit)",
-                        color=style["color"],
+                        color=fit_color,
                         line_width=2,
-                        alpha=0.5,
+                        alpha=0.3,
                         line_dash="dashed",
                     )
 
@@ -290,9 +376,10 @@ def create_spatial_variation_plot(
     uniform_line = Span(
         location=1.0,
         dimension="width",
-        line_color="gray",
+        line_color="black",
         line_dash="dotted",
         line_width=1,
+        line_alpha=0.5,
     )
     p.add_layout(uniform_line)
 
@@ -312,6 +399,15 @@ def main():
     print("=" * 80)
     print("WUI SPATIAL VARIATION ANALYSIS - PLOTTING")
     print("=" * 80)
+    print(f"Running on {SYSTEM} system")
+    print(f"Base directory: {BASE_DIR}")
+    print(f"Utils path: {UTILS_PATH}")
+
+    # Check if base directory exists
+    if not os.path.exists(BASE_DIR):
+        print(f"\nWARNING: Base directory not found: {BASE_DIR}")
+        print("Please check the path configuration.")
+        return
 
     # Create output directory if it doesn't exist
     os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -370,13 +466,34 @@ def main():
         print(f"  Saved plot to: {output_path}")
 
         # Add metadata to HTML file for reproducibility
-        try:
-            metadata = get_script_metadata(__file__)
-            with open(output_path, "a", encoding="utf-8") as f:
-                f.write(f"\n<!-- Script Metadata: {metadata} -->")
-            print("  Added metadata to HTML file")
-        except (OSError, RuntimeError, ValueError, TypeError) as e:
-            print(f"  Warning: Could not add metadata to HTML file: {e}")
+        if METADATA_AVAILABLE:
+            try:
+                metadata = get_script_metadata(__file__)
+
+                # Read the HTML file
+                with open(output_path, "r", encoding="utf-8") as f:
+                    html_content = f.read()
+
+                # Add metadata as HTML comment before closing </body> tag
+                metadata_comment = f"\n<!-- Script Metadata:\n{metadata}\n-->\n"
+
+                # Insert before </body> or at the end if no </body>
+                if "</body>" in html_content:
+                    html_content = html_content.replace(
+                        "</body>", f"{metadata_comment}</body>"
+                    )
+                else:
+                    html_content += metadata_comment
+
+                # Write back
+                with open(output_path, "w", encoding="utf-8") as f:
+                    f.write(html_content)
+
+                print("  Added metadata to HTML file")
+            except (OSError, RuntimeError, ValueError, TypeError) as e:
+                print(f"  Warning: Could not add metadata to HTML file: {e}")
+        else:
+            print("  Metadata not available (metadata_utils not imported)")
 
     print("\n" + "=" * 80)
     print("PLOTTING COMPLETE")
