@@ -33,7 +33,7 @@ Methodology:
     - Scatter points show measured ratios for each burn
     - Colors distinguish different ratio types (Peak, CR Box Activation, Average)
     - Marker shapes distinguish instruments (AeroTrak circles vs QuantAQ squares)
-    - Fitted curves use spline interpolation (or quadratic fallback)
+    - Fitted curves use spline interpolation (or linear for 2 points)
     - Ratio = 1.0 indicates perfect spatial uniformity
 
 Author: Nathan Lima
@@ -45,7 +45,7 @@ import os
 import sys
 import pandas as pd
 from bokeh.plotting import figure, output_file, save
-from bokeh.models import Span, Div
+from bokeh.models import Span, Div, ColumnDataSource
 from bokeh.layouts import column
 import numpy as np
 from scipy.interpolate import interp1d, make_interp_spline
@@ -199,7 +199,7 @@ def create_fitted_curve(x_data, y_data, num_points=100):
     Create a smooth fitted curve through data points
 
     Uses cubic spline interpolation if possible, falls back to quadratic
-    interpolation if the spline fails (e.g., with insufficient data points).
+    or linear interpolation for fewer data points.
 
     Parameters
     ----------
@@ -219,18 +219,35 @@ def create_fitted_curve(x_data, y_data, num_points=100):
     -----
     - Cubic spline (k=3) requires at least 4 data points
     - Quadratic interpolation requires at least 3 data points
+    - Linear interpolation works with 2 data points
     - Returns None, None if fitting fails
     """
     try:
-        # Need at least 3 unique x values for interpolation
-        if len(x_data) < 3:
+        n_points = len(x_data)
+
+        # Need at least 2 points for any interpolation
+        if n_points < 2:
             return None, None
 
         x_fit = np.linspace(x_data.min(), x_data.max(), num_points)
 
+        # For 2 points, use linear interpolation
+        if n_points == 2:
+            try:
+                f = interp1d(x_data, y_data, kind="linear")
+                y_fit = f(x_fit)
+                return x_fit, y_fit
+            except (ValueError, TypeError):
+                return None, None
+
+        # For 3+ points, try spline/quadratic/linear in order
         try:
-            # Try cubic spline for smooth curve
-            f = make_interp_spline(x_data, y_data, k=3)
+            # Try cubic spline for smooth curve (needs 4+ points)
+            if n_points >= 4:
+                f = make_interp_spline(x_data, y_data, k=3)
+            else:
+                # For 3 points, use quadratic spline
+                f = make_interp_spline(x_data, y_data, k=2)
             y_fit = f(x_fit)
         except (ValueError, TypeError):
             # Fallback to quadratic fit if spline fails
@@ -253,21 +270,43 @@ def create_fitted_curve(x_data, y_data, num_points=100):
 
 
 def perform_linear_fit(x_data, y_data):
-    """Perform linear regression with full statistics"""
+    """Perform linear regression with full statistics
+
+    Note: For 2-point data, the fit is perfect (R²=1.0, residuals=0).
+    In this case, AIC is set to -inf to indicate the best possible fit,
+    and standard errors are set to 0.
+    """
     try:
         if len(x_data) < 2:
             return None
         x, y = np.array(x_data), np.array(y_data)
         n = len(x)
-        slope, intercept, r_value, p_value, slope_stderr = stats.linregress(x, y)
+        slope, intercept, r_value, slope_stderr = stats.linregress(x, y)
         r_squared = r_value**2
         y_pred = slope * x + intercept
         ss_res = np.sum((y - y_pred) ** 2)
-        x_mean, ss_x = np.mean(x), np.sum((x - x_mean) ** 2)
-        mse = ss_res / (n - 2) if n > 2 else 0
-        intercept_stderr = np.sqrt(mse * (1 / n + x_mean**2 / ss_x)) if ss_x > 0 else 0
-        adj_r_squared = 1 - (1 - r_squared) * (n - 1) / (n - 2) if n > 2 else r_squared
-        aic = 2 * 2 + n * np.log(ss_res / n) if ss_res > 0 else np.inf
+        # Calculate x_mean first, then ss_x (ss_x depends on x_mean)
+        x_mean = np.mean(x)
+        ss_x = np.sum((x - x_mean) ** 2)
+
+        # Handle 2-point case specially (perfect fit, no degrees of freedom for error)
+        if n == 2:
+            mse = 0
+            intercept_stderr = 0  # Cannot estimate with only 2 points
+            adj_r_squared = r_squared  # Already 1.0 for 2 points
+            aic = float("-inf")  # Perfect fit has best (lowest) AIC
+        else:
+            mse = ss_res / (n - 2)
+            intercept_stderr = (
+                np.sqrt(mse * (1 / n + x_mean**2 / ss_x)) if ss_x > 0 else 0
+            )
+            adj_r_squared = 1 - (1 - r_squared) * (n - 1) / (n - 2)
+            # AIC calculation - handle case where ss_res is very small
+            if ss_res > 1e-15:
+                aic = 2 * 2 + n * np.log(ss_res / n)
+            else:
+                aic = float("-inf")  # Near-perfect fit
+
         return {
             "type": "linear",
             "equation": f"y = {slope:.4f}x + {intercept:.4f}",
@@ -280,7 +319,7 @@ def perform_linear_fit(x_data, y_data):
             "aic": aic,
             "n_points": n,
         }
-    except:
+    except Exception:
         return None
 
 
@@ -336,7 +375,7 @@ def perform_polynomial_fit(x_data, y_data, degree=2):
                 }
             )
         return result
-    except:
+    except Exception:
         return None
 
 
@@ -386,8 +425,8 @@ def create_spatial_variation_plot(
 
     Returns
     -------
-    bokeh.plotting.figure.Figure
-        Bokeh figure object with plotted data and fitted curves
+    tuple
+        (bokeh.plotting.figure.Figure, dict) - Bokeh figure and fit information
     """
     # Create figure
     p = figure(
@@ -399,8 +438,7 @@ def create_spatial_variation_plot(
         height=600,
     )
 
-    # Track legend entries and fit info
-    legend_added = set()
+    # Track fit info
     fit_info = {}
 
     # Plot data for each ratio type (colored by ratio)
@@ -425,14 +463,10 @@ def create_spatial_variation_plot(
             # Get marker shape for this instrument
             marker = INSTRUMENT_MARKERS.get(device_name, "circle")
 
-            # Collect all data points for this instrument and ratio for fitting
+            # Collect ALL data points for this instrument and ratio FIRST
             all_x = []
             all_y = []
 
-            # Track if we've added legend for this combination
-            combo_key = (ratio, device_name)
-
-            # Plot individual data points
             for burn_id in BURN_IDS:
                 burn_data = device_data[device_data["Burn_ID"] == burn_id]
 
@@ -452,29 +486,30 @@ def create_spatial_variation_plot(
                 if pd.isna(x_val) or pd.isna(y_val):
                     continue
 
-                # Create scatter plot kwargs
-                scatter_kwargs = {
-                    "x": [x_val],
-                    "y": [y_val],
-                    "color": ratio_color,
-                    "marker": marker,
-                    "size": 10,
-                    "alpha": 0.7,
-                }
-
-                # Add legend label for first data point of each ratio-instrument combination
-                if combo_key not in legend_added:
-                    scatter_kwargs["legend_label"] = f"{ratio_display} - {device_name}"
-                    legend_added.add(combo_key)
-
-                p.scatter(**scatter_kwargs)
-
-                # Collect for fitting
                 all_x.append(x_val)
                 all_y.append(y_val)
 
+            # Skip if no valid data points
+            if len(all_x) == 0:
+                continue
+
+            # Create a SINGLE scatter plot with ALL points for this ratio-instrument combo
+            # This ensures legend toggle works for all points together
+            source = ColumnDataSource(data={"x": all_x, "y": all_y})
+
+            p.scatter(
+                x="x",
+                y="y",
+                source=source,
+                color=ratio_color,
+                marker=marker,
+                size=10,
+                alpha=0.7,
+                legend_label=f"{ratio_display} - {device_name}",
+            )
+
             # Add fitted curve for this instrument and ratio (if we have enough points)
-            if len(all_x) >= 2:  # Need at least 2 points
+            if len(all_x) >= 2:
                 # Convert to numpy arrays and sort by x
                 x_array = np.array(all_x)
                 y_array = np.array(all_y)
@@ -482,14 +517,27 @@ def create_spatial_variation_plot(
                 x_sorted = x_array[sort_idx]
                 y_sorted = y_array[sort_idx]
 
-                # Select best statistical fit
+                # Select best statistical fit (works for 2+ points)
                 best_fit = select_best_fit(x_sorted, y_sorted)
 
-                # Create smooth curve for visualization
+                # Store fit info ALWAYS if we have a valid statistical fit
+                # This is separate from curve visualization
+                fit_key = f"{ratio_display} - {device_name}"
+
+                if best_fit:
+                    fit_info[fit_key] = {"n_points": len(all_x), "best_fit": best_fit}
+                    eq = best_fit["equation"]
+                    r2 = best_fit["r_squared"]
+                    adj_r2 = best_fit["adj_r_squared"]
+                    ftype = best_fit["type"]
+                    print(
+                        f"    ✓ {fit_key}: {eq}, R²={r2:.4f} (adj. R²={adj_r2:.4f}) [{ftype}]"
+                    )
+
+                # Create smooth curve for visualization (now works for 2+ points)
                 x_fit, y_fit = create_fitted_curve(x_sorted, y_sorted)
                 if x_fit is not None and y_fit is not None:
                     # Plot fit line WITHOUT adding to legend
-                    # Use same color as data points but more transparent
                     p.line(
                         x_fit,
                         y_fit,
@@ -498,25 +546,12 @@ def create_spatial_variation_plot(
                         alpha=0.3,
                         line_dash="dashed",
                     )
-
-                    # Store fit info
-                    fit_key = f"{ratio_display} - {device_name}"
-                    fit_info[fit_key] = {"n_points": len(all_x), "best_fit": best_fit}
-
-                    # Print fit info
-                    if best_fit:
-                        eq = best_fit["equation"]
-                        r2 = best_fit["r_squared"]
-                        adj_r2 = best_fit["adj_r_squared"]
-                        ftype = best_fit["type"]
-                        print(
-                            f"    ✓ {fit_key}: {eq}, R²={r2:.4f} (adj. R²={adj_r2:.4f}) [{ftype}]"
-                        )
                 else:
+                    # Even if curve visualization fails, we still have fit_info stored above
                     print(
-                        f"    ✗ {ratio_display} - {device_name}: Failed to create curve"
+                        f"    ⚠ {ratio_display} - {device_name}: Curve visualization failed (fit info still recorded)"
                     )
-            elif len(all_x) > 0:
+            elif len(all_x) == 1:
                 print(
                     f"    ✗ {ratio_display} - {device_name}: Insufficient data ({len(all_x)} pts)"
                 )
@@ -527,7 +562,7 @@ def create_spatial_variation_plot(
 
     # Customize legend
     p.legend.location = "top_right"
-    p.legend.click_policy = "hide"  # Allow clicking legend to hide/show lines
+    p.legend.click_policy = "hide"  # Allow clicking legend to hide/show all points
 
     # Add horizontal line at y=1.0 (perfect spatial uniformity)
     uniform_line = Span(
@@ -622,7 +657,7 @@ def main():
             aerotrak_data, quantaq_data, pm_size, BURN_TO_CRBOX_COUNT
         )
 
-        # Format fit information for metadata (FIRST)
+        # Format fit information for metadata
         fit_metadata_lines = ["<strong>Fitted Curves Information:</strong><br><br>"]
         if fit_info:
             for fit_key, info in sorted(fit_info.items()):
