@@ -90,7 +90,6 @@ else:  # laptop
 sys.path.append(UTILS_PATH)
 
 # Import metadata utilities
-# pylint: disable=import-error, wrong-import-position
 try:
     from metadata_utils import (
         get_script_metadata,
@@ -319,7 +318,7 @@ def perform_linear_fit(x_data, y_data):
             "aic": aic,
             "n_points": n,
         }
-    except Exception:
+    except (ValueError, TypeError, np.linalg.LinAlgError):
         return None
 
 
@@ -375,7 +374,7 @@ def perform_polynomial_fit(x_data, y_data, degree=2):
                 }
             )
         return result
-    except Exception:
+    except (ValueError, TypeError, np.linalg.LinAlgError):
         return None
 
 

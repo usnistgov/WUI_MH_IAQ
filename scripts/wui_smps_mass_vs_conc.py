@@ -12,25 +12,6 @@ Key Analyses:
     - Geometric standard deviation impacts
     - Temporal dynamics of distribution parameters
 
-Methodology:
-    - Extract number concentration: ∫dN/dlog(Dp) d(log Dp)
-    - Calculate mass concentration: ∫(π/6 × d_p³ × ρ × dN/dlog(Dp)) d(log Dp)
-    - Track mass/number ratio: M/N (pg per particle)
-    - Identify dominant size modes
-
-Distribution Characterization:
-    - Count median diameter (CMD)
-    - Mass median diameter (MMD)
-    - Geometric mean diameter (GMD)
-    - Geometric standard deviation (GSD)
-    - Total concentration metrics
-
-Research Questions:
-    1. How does particle growth affect mass vs number trends?
-    2. Does coagulation or condensation dominate during decay?
-    3. What is the characteristic smoke particle size?
-    4. How do different filter configurations affect size distribution?
-
 Outputs:
     - Mass vs number scatter plots
     - Mass/number ratio time series
