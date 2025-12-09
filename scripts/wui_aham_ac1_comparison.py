@@ -42,7 +42,7 @@ Methodology:
     10. Calculate and report summary statistics
 
 Output:
-    - Console table: Burn | Instrument | Max PM1 (µg/m³) | Particle Count (#/cm³) | AC-1 Equivalent Range
+    - Console table: Burn | Instrument | Max PM1 (µg/m³) | Particle Count (#/cm³) | AC-1 Range
     - Summary statistics: mean, median, standard deviation for each metric
     - Instrument comparison statistics
 
@@ -54,12 +54,12 @@ Data Sources:
 Important Notes:
     - Particle size range mismatch: QuantAQ bins cover 0.35–1.0 µm, while AC-1 specifies 0.1–1.0 µm
     - This means QuantAQ measurements exclude particles between 0.1–0.35 µm
-    - The comparison provides a conservative estimate (actual AC-1 equivalent would be higher)
+    - The comparison provides a conservative estimate (actual AC-1 would be higher)
     - Data has been pre-QA/QC'd, no additional filtering applied
 
 Applications:
     - Air cleaner performance testing protocol comparison
-    - Standardized test environment equivalence assessment
+    - Standardized test environment assessment
     - Wildfire smoke characterization vs. synthetic test smoke
     - Real-world exposure metric translation to lab test conditions
 
@@ -133,6 +133,7 @@ BURN_IDS = ["burn4", "burn5", "burn6", "burn7", "burn8", "burn9", "burn10"]
 # QuantAQ bin definitions (particle size ranges in µm)
 # bin0: 0.35-0.46 µm, bin1: 0.46-0.66 µm, bin2: 0.66-1.0 µm
 PARTICLE_BINS = ["bin0", "bin1", "bin2"]
+# PARTICLE_BINS = ["neph_bin0", "neph_bin1", "neph_bin2"] #added for testing with neph data
 
 
 # ============================================================================
@@ -328,7 +329,7 @@ def print_results_table(results_df):
         results_df (pd.DataFrame): Results dataframe with all metrics
     """
     print(f"\n{'='*80}")
-    print("AHAM AC-1 EQUIVALENT CONCENTRATION RANGES")
+    print("AHAM AC-1 CONCENTRATION RANGES")
     print(f"{'='*80}")
     print(f"AC-1 Standard: {AC1_LOWER_LIMIT:,}–{AC1_UPPER_LIMIT:,} #/cm³ (0.1–1.0 µm)")
     print("QuantAQ Measurement Range: 0.35–1.0 µm (excludes 0.1–0.35 µm particles)")
@@ -337,7 +338,7 @@ def print_results_table(results_df):
     # Print header
     header = (
         f"{'Burn':<8} {'Instrument':<15} {'Max PM1':>12} {'Particle Count':>16} "
-        f"{'AC-1 Equivalent Range':>28}"
+        f"{'AC-1 Range':>28}"
     )
     print(header)
     print(f"{'':<8} {'':<15} {'(µg/m³)':>12} {'(#/cm³)':>16} {'(µg/m³)':>28}")
@@ -383,12 +384,12 @@ def print_summary_statistics(results_df):
     print(f"    Median: {results_df['conversion_factor'].median():>10.6f}")
     print(f"    Std Dev:{results_df['conversion_factor'].std():>10.6f}")
 
-    print("\n  AC-1 Equivalent Range (Lower Bound):")
+    print("\n  AC-1 Range (Lower Bound):")
     print(f"    Mean:   {results_df['ac1_lower'].mean():>10.1f} µg/m³")
     print(f"    Median: {results_df['ac1_lower'].median():>10.1f} µg/m³")
     print(f"    Std Dev:{results_df['ac1_lower'].std():>10.1f} µg/m³")
 
-    print("\n  AC-1 Equivalent Range (Upper Bound):")
+    print("\n  AC-1 Range (Upper Bound):")
     print(f"    Mean:   {results_df['ac1_upper'].mean():>10.1f} µg/m³")
     print(f"    Median: {results_df['ac1_upper'].median():>10.1f} µg/m³")
     print(f"    Std Dev:{results_df['ac1_upper'].std():>10.1f} µg/m³")
@@ -407,7 +408,7 @@ def print_summary_statistics(results_df):
             f"  Mean Particle Count: {instrument_data['particle_count'].mean():>10.1f} #/cm³"
         )
         print(
-            f"  Mean AC-1 Equiv. Range: "
+            f"  Mean AC-1 Range: "
             f"{instrument_data['ac1_lower'].mean():.1f}–"
             f"{instrument_data['ac1_upper'].mean():.1f} µg/m³\n"
         )
@@ -464,8 +465,6 @@ def main():
     print("\n2. The calculated AC-1 equivalent ranges represent conservative")
     print("   estimates. True AC-1 equivalent concentrations would be higher")
     print("   if particles in the 0.1–0.35 µm range were included.")
-    print("\n3. Conversion factors vary between burns due to differences in")
-    print("   fuel types, combustion conditions, and particle size distributions.")
     print(f"{'='*80}\n")
 
     return results_df
