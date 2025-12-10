@@ -34,7 +34,7 @@ The study conducted multiple controlled burn experiments (Burn 1-10) in a manufa
 - Portable air cleaners with MERV filtration (various CADR ratings)
 - Central HVAC systems with MERV 12A and MERV 13 filters
 - Room compartmentalization (closed bedroom with/without filtration)
-- Multiple filter configurations (1, 2, and 4 filters)
+- Multiple filter configurations (1 and 2 filters analyzed; 4 filter configuration excluded due to data quality issues)
 
 ## Repository Structure
 

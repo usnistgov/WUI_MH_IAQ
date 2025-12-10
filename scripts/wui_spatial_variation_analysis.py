@@ -10,6 +10,9 @@ infiltration experiments. The analysis compares bedroom2 (reference location) ve
 the morning room (kitchen area) to characterize the uniformity of smoke distribution
 and mitigation effectiveness across the indoor environment.
 
+Note: This analysis processes burns with 1 and 2 CR Box (portable air cleaner)
+configurations. Burns with 4 CR Boxes have been excluded due to data quality issues.
+
 Key Metrics Calculated:
     - Peak Ratio Index (PRI): Ratio of peak PM concentrations between locations
     - CR Box Activation Ratio: Ratio of PM concentrations at CR Box activation time

@@ -13,11 +13,13 @@ Key Features:
     - Visualizes three ratio metrics: Peak Ratio Index, CR Box Activation Ratio,
       and Average Ratio
     - Compares data from two instrument types: AeroTrak and QuantAQ
-    - Analyzes three burns with different CR Box configurations (1, 2, and 4 units)
+    - Analyzes two burns with different CR Box configurations (1 and 2 units)
     - Generates size-resolved plots for PM1, PM2.5, and PM10
     - Fits smooth curves to data for trend analysis
     - Embeds script metadata into HTML output for reproducibility
     - Automatically detects desktop vs laptop system for file paths
+
+Note: Burns with 4 CR Boxes have been excluded due to data quality issues.
 
 Input:
     - spatial_variation_analysis.xlsx: Excel file with AeroTrak and QuantAQ sheets
@@ -28,12 +30,12 @@ Output:
     - Plots saved to Paper_figures directory
 
 Methodology:
-    - X-axis represents number of CR Boxes operating (1, 2, or 4 units)
+    - X-axis represents number of CR Boxes operating (1 or 2 units)
     - Y-axis shows concentration ratios (bedroom2/morning room)
     - Scatter points show measured ratios for each burn
     - Colors distinguish different ratio types (Peak, CR Box Activation, Average)
     - Marker shapes distinguish instruments (AeroTrak circles vs QuantAQ squares)
-    - Fitted curves use spline interpolation (or linear for 2 points)
+    - Fitted curves use linear interpolation (for 2 data points)
     - Ratio = 1.0 indicates perfect spatial uniformity
 
 Author: Nathan Lima
@@ -112,9 +114,10 @@ EXCEL_FILE_PATH = os.path.join(BASE_DIR, "burn_data", "spatial_variation_analysi
 OUTPUT_DIR = os.path.join(BASE_DIR, "Paper_figures")
 
 # Burns to analyze and their corresponding CR Box counts
-# burn2: 4 CR Boxes, burn4: 1 CR Box, burn9: 2 CR Boxes
-BURN_IDS = ["burn2", "burn4", "burn9"]
-BURN_TO_CRBOX_COUNT = {"burn2": 4, "burn4": 1, "burn9": 2}
+# Note: burn2 (4 CR Boxes) excluded due to data quality issues
+# burn4: 1 CR Box, burn9: 2 CR Boxes
+BURN_IDS = ["burn4", "burn9"]
+BURN_TO_CRBOX_COUNT = {"burn4": 1, "burn9": 2}
 
 # Color mapping for ratio types (each ratio gets a unique color)
 RATIO_COLORS = {
@@ -148,8 +151,8 @@ RATIO_METRICS = ["Peak_Ratio_Index", "CRBox_Activation_Ratio", "Average_Ratio"]
 
 # Plot configuration
 PLOT_Y_RANGE = (0, 1.5)  # Y-axis range for ratio plots
-X_AXIS_TICKS = [1, 2, 3, 4]  # X-axis tick positions (CR Box counts)
-X_AXIS_LABELS = {1: "1", 2: "2", 3: "", 4: "4"}  # Custom labels (3 is hidden)
+X_AXIS_TICKS = [1, 2]  # X-axis tick positions (CR Box counts)
+X_AXIS_LABELS = {1: "1", 2: "2"}  # Custom labels for x-axis
 
 
 # ============================================================================
