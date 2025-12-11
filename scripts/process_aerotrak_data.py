@@ -2,23 +2,22 @@
 AeroTrak Particle Counter Data Processing Script.
 
 This module processes raw data exported from TSI AeroTrak particle counters
-(e.g., Model 9306-V2). It reads Excel (.xlsx) or CSV export files, extracts
-instrument metadata and cut point sizes from the header, then calculates
-particle mass concentrations (µg/m³) and number concentrations (#/m³) for
-each size bin.
+(e.g., Model 9306-V2). It reads the Excel export files, extracts instrument
+metadata and cut point sizes from the header, then calculates particle mass
+concentrations (µg/m³) and number concentrations (#/m³) for each size bin.
 
 The script also calculates standard PM metrics (PM1.0, PM2.5, PM10) when the
-instrument's bin boundaries permit accurate aggregation.
+instrument's bin boundaries permit accurate aggregation. A PM metric is only
+calculated if a bin upper boundary exists at exactly that cutoff size.
 
 Mass concentration calculations assume spherical particles with unit density
 (1 g/cm³), which is a common assumption for optical particle counters when
 actual particle density is unknown.
 
-Author: Nathan Lima
-Date: 11/12/2025
+Author: [Your Name]
+Date: [Date]
 """
 
-from pathlib import Path
 from typing import TypedDict
 
 import numpy as np
@@ -116,7 +115,7 @@ def _parse_metadata_row(
 
 def parse_aerotrak_header(file_path: str) -> AeroTrakMetadata:
     """
-    Parse the header section of an AeroTrak export file.
+    Parse the header section of an AeroTrak Excel export file.
 
     AeroTrak files contain instrument metadata in the first ~10 rows before
     the actual measurement data begins. This function extracts key information
@@ -124,7 +123,7 @@ def parse_aerotrak_header(file_path: str) -> AeroTrakMetadata:
     and critically, the cut point sizes that define particle size bins.
 
     Args:
-        file_path: Path to the AeroTrak Excel (.xlsx) or CSV file.
+        file_path: Path to the AeroTrak Excel file (.xlsx).
 
     Returns:
         A dictionary containing:
@@ -139,18 +138,8 @@ def parse_aerotrak_header(file_path: str) -> AeroTrakMetadata:
     Raises:
         ValueError: If cut point sizes cannot be found in the file header.
     """
-    # Determine file type and read the first 15 rows
-    file_ext = Path(file_path).suffix.lower()
-
-    if file_ext == ".csv":
-        header_df = pd.read_csv(file_path, header=None, nrows=15)
-    elif file_ext in [".xlsx", ".xls"]:
-        header_df = pd.read_excel(file_path, sheet_name=0, header=None, nrows=15)
-    else:
-        raise ValueError(
-            f"Unsupported file type: {file_ext}. "
-            "Please provide either a CSV (.csv) or Excel (.xlsx, .xls) file."
-        )
+    # Read the first 15 rows without header processing to examine raw structure
+    header_df = pd.read_excel(file_path, sheet_name=0, header=None, nrows=15)
 
     metadata: AeroTrakMetadata = {
         "model": None,
@@ -304,6 +293,19 @@ def _process_single_bin(
     return mass_info, number_info
 
 
+def _get_bin_upper_boundaries(mass_cols: list[ColumnInfo]) -> set[float]:
+    """
+    Get the set of all bin upper boundaries.
+
+    Args:
+        mass_cols: List of mass concentration column metadata.
+
+    Returns:
+        Set of upper boundary values in µm.
+    """
+    return {col_info["upper"] for col_info in mass_cols}
+
+
 def _calculate_pm_metrics(
     results_df: pd.DataFrame,
     mass_cols: list[ColumnInfo],
@@ -313,13 +315,24 @@ def _calculate_pm_metrics(
     Calculate aggregate PM metrics (PM1.0, PM2.5, PM10).
 
     Adds columns for both mass and number concentrations for each PM metric
-    where the bin boundaries permit accurate calculation.
+    ONLY when the bin boundaries permit accurate calculation. A PM metric
+    requires a bin upper boundary at exactly that cutoff size.
+
+    For example:
+        - PM1.0 requires a bin ending at 1.0 µm
+        - PM2.5 requires a bin ending at 2.5 µm
+        - PM10 requires a bin ending at 10.0 µm
+
+    If no such bin boundary exists, the PM metric is skipped entirely.
 
     Args:
         results_df: DataFrame to add PM metric columns to (modified in place).
         mass_cols: List of mass concentration column metadata.
         number_cols: List of number concentration column metadata.
     """
+    # Get all bin upper boundaries to check if PM metrics can be calculated
+    bin_boundaries = _get_bin_upper_boundaries(mass_cols)
+
     pm_cutoffs = [
         {"name": "PM1.0", "cutoff": 1.0},
         {"name": "PM2.5", "cutoff": 2.5},
@@ -332,27 +345,27 @@ def _calculate_pm_metrics(
         cutoff = pm["cutoff"]
         pm_name = pm["name"]
 
-        # Find bins that are completely below the cutoff
-        contributing_mass_cols = []
-        partial_bins = []
+        # Check if a bin boundary exists at this cutoff
+        # A PM metric can only be accurately calculated if there's a bin
+        # whose upper bound equals the cutoff
+        if cutoff not in bin_boundaries:
+            print(
+                f"  {pm_name}: SKIPPED - no bin boundary at {cutoff} µm. "
+                f"Available boundaries: {sorted(bin_boundaries)}"
+            )
+            continue
 
-        for col_info in mass_cols:
-            if col_info["upper"] <= cutoff:
-                contributing_mass_cols.append(col_info["name"])
-            elif col_info["lower"] < cutoff < col_info["upper"]:
-                partial_bins.append(f"{col_info['lower']}-{col_info['upper']}")
+        # Find all bins whose upper bound is at or below the cutoff
+        contributing_mass_cols = [
+            col_info["name"] for col_info in mass_cols if col_info["upper"] <= cutoff
+        ]
 
         # Calculate mass concentration for this PM metric
         if contributing_mass_cols:
             results_df[f"{pm_name} (µg/m³)"] = results_df[contributing_mass_cols].sum(
                 axis=1
             )
-            _print_pm_calculation_status(pm_name, contributing_mass_cols, partial_bins)
-        else:
-            print(
-                f"  {pm_name}: Cannot calculate - "
-                f"no bins completely below {cutoff}µm cutoff"
-            )
+            print(f"  {pm_name}: Calculated from bins {contributing_mass_cols}")
 
         # Calculate number concentration for this PM metric
         contributing_num_cols = [
@@ -365,21 +378,6 @@ def _calculate_pm_metrics(
             )
 
 
-def _print_pm_calculation_status(
-    pm_name: str, contributing_cols: list[str], partial_bins: list[str]
-) -> None:
-    """Print status message for PM metric calculation."""
-    if partial_bins:
-        cutoff = pm_name.replace("PM", "")
-        print(
-            f"  {pm_name}: Calculated from complete bins. "
-            f"Note: Bin(s) {partial_bins} span the {cutoff}µm cutoff "
-            "and are excluded (may underestimate)."
-        )
-    else:
-        print(f"  {pm_name}: Calculated from bins {contributing_cols}")
-
-
 def process_aerotrak_data(
     input_file_path: str,
     output_file_path: str,
@@ -389,7 +387,7 @@ def process_aerotrak_data(
     """
     Process AeroTrak particle counter data and calculate mass/number concentrations.
 
-    This function reads raw AeroTrak export files (Excel or CSV), extracts the cut point
+    This function reads raw AeroTrak Excel export files, extracts the cut point
     sizes from the header, and calculates both mass concentration (µg/m³) and
     number concentration (#/m³) for each size bin. It also calculates aggregate
     PM metrics (PM1.0, PM2.5, PM10) when bin boundaries allow.
@@ -399,7 +397,7 @@ def process_aerotrak_data(
     actual particle composition is unknown.
 
     Args:
-        input_file_path: Path to the input AeroTrak Excel (.xlsx) or CSV (.csv) file.
+        input_file_path: Path to the input AeroTrak Excel file.
         output_file_path: Path for the output Excel file with calculated concentrations.
         particle_density: Assumed particle density in g/cm³. Default is 1.0.
         final_bin_upper: Upper bound for the largest size bin in µm. Default is 25.0.
@@ -420,26 +418,12 @@ def process_aerotrak_data(
     print(f"Flow Rate: {metadata['flow_rate']} L/min")
     print(f"Cut Point Sizes (µm): {cut_points}")
 
-    # Determine file type and read the data section using the identified header row
-    file_ext = Path(input_file_path).suffix.lower()
-
-    if file_ext == ".csv":
-        data_df = pd.read_csv(
-            input_file_path,
-            header=metadata["header_row"],
-        )
-    elif file_ext in [".xlsx", ".xls"]:
-        data_df = pd.read_excel(
-            input_file_path,
-            sheet_name=0,
-            header=metadata["header_row"],
-        )
-    else:
-        raise ValueError(
-            f"Unsupported file type: {file_ext}. "
-            "Please provide either a CSV (.csv) or Excel (.xlsx, .xls) file."
-        )
-
+    # Read the data section using the identified header row
+    data_df = pd.read_excel(
+        input_file_path,
+        sheet_name=0,
+        header=metadata["header_row"],
+    )
     data_df.columns = data_df.columns.str.strip()
 
     # Verify required volume column exists and convert to m³
@@ -475,7 +459,7 @@ def process_aerotrak_data(
         if number_info is not None:
             number_cols.append(number_info)
 
-    # Calculate aggregate PM metrics
+    # Calculate aggregate PM metrics (only where bin boundaries allow)
     _calculate_pm_metrics(results_df, mass_cols, number_cols)
 
     # Save results to Excel file
@@ -490,7 +474,7 @@ def main() -> None:
     Main entry point for the AeroTrak data processing script.
 
     Provides a graphical file selection interface using tkinter dialogs.
-    Prompts the user to select an input AeroTrak Excel or CSV file and specify
+    Prompts the user to select an input AeroTrak Excel file and specify
     an output location for the processed data.
     """
     # pylint: disable=import-outside-toplevel
@@ -507,7 +491,6 @@ def main() -> None:
         title="Select AeroTrak Data File",
         filetypes=[
             ("Excel Files", "*.xlsx"),
-            ("CSV Files", "*.csv"),
             ("All Files", "*.*"),
         ],
     )
