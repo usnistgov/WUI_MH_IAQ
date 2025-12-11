@@ -42,9 +42,9 @@ Date: 2024-2025
 
 # %%
 import os
+import sys
 import pandas as pd
 import numpy as np
-import sys
 from bokeh.plotting import figure, show
 from bokeh.io import output_notebook, output_file
 from bokeh.models import ColumnDataSource, Div
