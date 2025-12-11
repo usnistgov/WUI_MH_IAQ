@@ -14,11 +14,11 @@ Mass concentration calculations assume spherical particles with unit density
 (1 g/cm³), which is a common assumption for optical particle counters when
 actual particle density is unknown.
 
-Author: [Your Name]
-Date: [Date]
+Author: Nathan Lima
+Date: 12/11/2025
 """
 
-from typing import TypedDict
+from typing import TypedDict, cast
 
 import numpy as np
 import pandas as pd
@@ -157,7 +157,7 @@ def parse_aerotrak_header(file_path: str) -> AeroTrakMetadata:
 
         is_header_row = _parse_metadata_row(first_cell, row, metadata)
         if is_header_row:
-            metadata["header_row"] = idx
+            metadata["header_row"] = cast(int, idx)
             break
 
     if metadata["cut_points"] is None:
@@ -411,6 +411,8 @@ def process_aerotrak_data(
     # Parse header to get metadata and cut point sizes
     metadata = parse_aerotrak_header(input_file_path)
     cut_points = metadata["cut_points"]
+    if cut_points is None:
+        raise ValueError("cut_points should not be None after parsing header")
 
     # Print instrument information
     print(f"Instrument Model: {metadata['model']}")
