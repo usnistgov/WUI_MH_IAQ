@@ -2,9 +2,10 @@
 AeroTrak Particle Counter Data Processing Script.
 
 This module processes raw data exported from TSI AeroTrak particle counters
-(e.g., Model 9306-V2). It reads the Excel export files, extracts instrument
-metadata and cut point sizes from the header, then calculates particle mass
-concentrations (µg/m³) and number concentrations (#/m³) for each size bin.
+(e.g., Model 9306-V2). It reads Excel (.xlsx) or CSV export files, extracts
+instrument metadata and cut point sizes from the header, then calculates
+particle mass concentrations (µg/m³) and number concentrations (#/m³) for
+each size bin.
 
 The script also calculates standard PM metrics (PM1.0, PM2.5, PM10) when the
 instrument's bin boundaries permit accurate aggregation. A PM metric is only
@@ -18,6 +19,7 @@ Author: Nathan Lima
 Date: 12/11/2025
 """
 
+import os
 from typing import TypedDict, cast
 
 import numpy as np
@@ -115,7 +117,7 @@ def _parse_metadata_row(
 
 def parse_aerotrak_header(file_path: str) -> AeroTrakMetadata:
     """
-    Parse the header section of an AeroTrak Excel export file.
+    Parse the header section of an AeroTrak export file (Excel or CSV).
 
     AeroTrak files contain instrument metadata in the first ~10 rows before
     the actual measurement data begins. This function extracts key information
@@ -123,7 +125,7 @@ def parse_aerotrak_header(file_path: str) -> AeroTrakMetadata:
     and critically, the cut point sizes that define particle size bins.
 
     Args:
-        file_path: Path to the AeroTrak Excel file (.xlsx).
+        file_path: Path to the AeroTrak file (.xlsx or .csv).
 
     Returns:
         A dictionary containing:
@@ -138,8 +140,18 @@ def parse_aerotrak_header(file_path: str) -> AeroTrakMetadata:
     Raises:
         ValueError: If cut point sizes cannot be found in the file header.
     """
-    # Read the first 15 rows without header processing to examine raw structure
-    header_df = pd.read_excel(file_path, sheet_name=0, header=None, nrows=15)
+    # Determine file type and read the first 15 rows without header processing
+    file_extension = os.path.splitext(file_path)[1].lower()
+
+    if file_extension == ".csv":
+        header_df = pd.read_csv(file_path, header=None, nrows=15)
+    elif file_extension in [".xlsx", ".xls"]:
+        header_df = pd.read_excel(file_path, sheet_name=0, header=None, nrows=15)
+    else:
+        raise ValueError(
+            f"Unsupported file format: {file_extension}. "
+            "Please provide a .xlsx or .csv file."
+        )
 
     metadata: AeroTrakMetadata = {
         "model": None,
@@ -387,9 +399,9 @@ def process_aerotrak_data(
     """
     Process AeroTrak particle counter data and calculate mass/number concentrations.
 
-    This function reads raw AeroTrak Excel export files, extracts the cut point
-    sizes from the header, and calculates both mass concentration (µg/m³) and
-    number concentration (#/m³) for each size bin. It also calculates aggregate
+    This function reads raw AeroTrak export files (Excel or CSV), extracts the
+    cut point sizes from the header, and calculates both mass concentration (µg/m³)
+    and number concentration (#/m³) for each size bin. It also calculates aggregate
     PM metrics (PM1.0, PM2.5, PM10) when bin boundaries allow.
 
     The mass calculation assumes spherical particles with the specified density.
@@ -397,8 +409,8 @@ def process_aerotrak_data(
     actual particle composition is unknown.
 
     Args:
-        input_file_path: Path to the input AeroTrak Excel file.
-        output_file_path: Path for the output Excel file with calculated concentrations.
+        input_file_path: Path to the input AeroTrak file (.xlsx or .csv).
+        output_file_path: Path for the output file with calculated concentrations.
         particle_density: Assumed particle density in g/cm³. Default is 1.0.
         final_bin_upper: Upper bound for the largest size bin in µm. Default is 25.0.
 
@@ -420,12 +432,21 @@ def process_aerotrak_data(
     print(f"Flow Rate: {metadata['flow_rate']} L/min")
     print(f"Cut Point Sizes (µm): {cut_points}")
 
-    # Read the data section using the identified header row
-    data_df = pd.read_excel(
-        input_file_path,
-        sheet_name=0,
-        header=metadata["header_row"],
-    )
+    # Determine file type and read the data section using the identified header row
+    file_extension = os.path.splitext(input_file_path)[1].lower()
+
+    if file_extension == ".csv":
+        data_df = pd.read_csv(input_file_path, header=metadata["header_row"])
+    elif file_extension in [".xlsx", ".xls"]:
+        data_df = pd.read_excel(
+            input_file_path, sheet_name=0, header=metadata["header_row"]
+        )
+    else:
+        raise ValueError(
+            f"Unsupported file format: {file_extension}. "
+            "Please provide a .xlsx or .csv file."
+        )
+
     data_df.columns = data_df.columns.str.strip()
 
     # Verify required volume column exists and convert to m³
@@ -464,8 +485,17 @@ def process_aerotrak_data(
     # Calculate aggregate PM metrics (only where bin boundaries allow)
     _calculate_pm_metrics(results_df, mass_cols, number_cols)
 
-    # Save results to Excel file
-    results_df.to_excel(output_file_path, index=False)
+    # Save results based on output file extension
+    output_extension = os.path.splitext(output_file_path)[1].lower()
+
+    if output_extension == ".csv":
+        results_df.to_csv(output_file_path, index=False)
+    elif output_extension in [".xlsx", ".xls"]:
+        results_df.to_excel(output_file_path, index=False)
+    else:
+        # Default to Excel if extension is unclear
+        results_df.to_excel(output_file_path, index=False)
+
     print(f"\nResults saved to: {output_file_path}")
 
     return results_df
@@ -476,51 +506,97 @@ def main() -> None:
     Main entry point for the AeroTrak data processing script.
 
     Provides a graphical file selection interface using tkinter dialogs.
-    Prompts the user to select an input AeroTrak Excel file and specify
-    an output location for the processed data.
+    Prompts the user to select an input AeroTrak data file (Excel or CSV)
+    and specify an output location for the processed data.
     """
     # pylint: disable=import-outside-toplevel
     # Tkinter imported here to allow module use in non-GUI environments
     import tkinter as tk
     from tkinter import filedialog
 
+    # Print welcome message and instructions
+    print("=" * 70)
+    print("AeroTrak Particle Counter Data Processing Script")
+    print("=" * 70)
+    print("\nThis script will:")
+    print("  1. Read raw AeroTrak particle counter data (Excel or CSV format)")
+    print("  2. Extract instrument metadata and particle size bin information")
+    print("  3. Calculate mass concentration (µg/m³) for each size bin")
+    print("  4. Calculate number concentration (#/m³) for each size bin")
+    print("  5. Calculate PM1.0, PM2.5, and PM10 metrics (when applicable)")
+    print("  6. Save the processed data to a new file")
+    print("\nNOTE: Mass calculations assume spherical particles with unit density")
+    print("      (1.0 g/cm³), which is standard for optical particle counters.")
+    print("\n" + "=" * 70)
+    print("Please select your input and output files in the dialogs that follow.")
+    print("=" * 70 + "\n")
+
     # Initialize tkinter root window (hidden)
     root = tk.Tk()
     root.withdraw()
 
     # Prompt user to select input file
+    print("Opening file browser - Please select your AeroTrak data file...")
     input_file_path = filedialog.askopenfilename(
-        title="Select AeroTrak Data File",
+        title="Select AeroTrak Data File (Excel or CSV)",
         filetypes=[
-            ("Excel Files", "*.xlsx"),
+            ("Data Files", "*.xlsx;*.xls;*.csv"),
+            ("Excel Files", "*.xlsx;*.xls"),
+            ("CSV Files", "*.csv"),
             ("All Files", "*.*"),
         ],
     )
 
     if not input_file_path:
-        print("No input file selected. Exiting.")
+        print("\nNo input file selected. Exiting.")
         return
 
+    print(f"\nInput file selected: {input_file_path}")
+
     # Prompt user to select output location
+    print("\nOpening file browser - Please select where to save the processed data...")
     output_file_path = filedialog.asksaveasfilename(
         title="Save Processed Data As",
         defaultextension=".xlsx",
         filetypes=[
             ("Excel Files", "*.xlsx"),
+            ("CSV Files", "*.csv"),
             ("All Files", "*.*"),
         ],
     )
 
     if not output_file_path:
-        print("No output location selected. Exiting.")
+        print("\nNo output location selected. Exiting.")
         return
+
+    print(f"Output file will be saved as: {output_file_path}")
+    print("\n" + "=" * 70)
+    print("Processing data...")
+    print("=" * 70 + "\n")
 
     # Process the data
     try:
         process_aerotrak_data(input_file_path, output_file_path)
-        print("\nProcessing complete!")
+        print("\n" + "=" * 70)
+        print("Processing complete!")
+        print("=" * 70)
+        print(f"\nYour processed data has been saved to:\n  {output_file_path}")
+        print("\nThe output file contains:")
+        print("  - Mass concentrations (µg/m³) for each particle size bin")
+        print("  - Number concentrations (#/m³) for each particle size bin")
+        print("  - PM metrics (PM1.0, PM2.5, PM10) where bin boundaries allow")
+        print("\n" + "=" * 70 + "\n")
     except Exception as err:
-        print(f"\nError processing file: {err}")
+        print("\n" + "=" * 70)
+        print("ERROR: Processing failed!")
+        print("=" * 70)
+        print(f"\nError message: {err}")
+        print("\nPlease check that:")
+        print("  - The input file is a valid AeroTrak export (Excel or CSV)")
+        print("  - The file contains the expected header structure")
+        print("  - The file includes 'Cut Point Sizes' information")
+        print("  - The file has the required data columns (Volume, Ch1 Diff, etc.)")
+        print("\n" + "=" * 70 + "\n")
         raise
 
 
