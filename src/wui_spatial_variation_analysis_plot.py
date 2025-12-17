@@ -80,27 +80,15 @@ SYSTEM = detect_system()
 
 if SYSTEM == "desktop":
     BASE_DIR = r"C:\Users\nml\OneDrive - NIST\Documents\NIST\WUI_smoke"
-    SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-    PARENT_DIR = os.path.dirname(SCRIPT_DIR)
-    GRANDPARENT_DIR = os.path.dirname(PARENT_DIR)
-    UTILS_PATH = os.path.join(GRANDPARENT_DIR, "general_utils", "scripts")
 else:  # laptop
     BASE_DIR = r"C:\Users\Nathan\Documents\NIST\WUI_smoke"
-    UTILS_PATH = r"C:\Users\Nathan\Documents\GitHub\python_coding\general_utils\scripts"
-
-# Add utils to path
-sys.path.append(UTILS_PATH)
 
 # Import metadata utilities
-try:
-    from metadata_utils import (
-        get_script_metadata,
-    )  # type: ignore[import-untyped]  # pylint: disable=import-error,wrong-import-position  # noqa: E402
+script_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(script_dir)
+sys.path.append(parent_dir)
 
-    METADATA_AVAILABLE = True
-except ImportError:
-    METADATA_AVAILABLE = False
-    print("Warning: metadata_utils not available, metadata will not be added to plots")
+from scripts import get_script_metadata
 
 
 # ============================================================================

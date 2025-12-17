@@ -71,11 +71,9 @@ from bokeh.layouts import column
 # Import utils
 script_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(script_dir)
-grandparent_dir = os.path.dirname(parent_dir)
-sys.path.append(os.path.join(grandparent_dir, "general_utils", "scripts"))
+sys.path.append(parent_dir)
 
-# utils
-from metadata_utils import get_script_metadata  # type: ignore[import-untyped]  # pylint: disable=import-error,wrong-import-position  # noqa: E402
+from scripts import get_script_metadata  # pylint: disable=import-error,wrong-import-position
 
 # Configuration constants
 ABSOLUTE_PATH = (
