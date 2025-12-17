@@ -33,7 +33,7 @@ Notes:
     - Burn 3 uses 5-min rolling average; Burn 6 has custom decay window
 
 Author: Nathan Lima
-Date: 2024-2025
+Date: 2025
 """
 
 # %% IMPORT MODULES
