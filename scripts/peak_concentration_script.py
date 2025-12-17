@@ -377,18 +377,18 @@ def calculate_rolling_average_burn3(data):
     rolling_avg_data = {}
 
     numeric_columns = burn3_data.select_dtypes(include=[np.number]).columns
-    for column in numeric_columns:
-        rolling_avg_data[column] = (
-            burn3_data[column]
+    for col in numeric_columns:
+        rolling_avg_data[col] = (
+            burn3_data[col]
             .rolling(pd.Timedelta(minutes=5))
             .mean()
-            .astype(burn3_data[column].dtype)
+            .astype(burn3_data[col].dtype)
         )
 
     status_columns = ["Flow Status", "Instrument Status", "Laser Status"]
-    for column in status_columns:
-        if column in burn3_data.columns:
-            rolling_avg_data[column] = burn3_data[column].iloc[0]
+    for col in status_columns:
+        if col in burn3_data.columns:
+            rolling_avg_data[col] = burn3_data[col].iloc[0]
 
     rolling_avg_df = pd.DataFrame(rolling_avg_data, index=burn3_data.index)
     rolling_avg_df.reset_index(inplace=True)
