@@ -38,12 +38,14 @@ Date: 2024-2025
 
 # %% IMPORT MODULES
 import os
+import sys
 import traceback
 import pandas as pd
 import numpy as np
 from bokeh.plotting import figure, show
 from bokeh.io import output_notebook, output_file
-from bokeh.models import ColumnDataSource, Range1d
+from bokeh.models import ColumnDataSource, Range1d, Div
+from bokeh.layouts import column
 
 # Set the absolute path for the dataset
 ABSOLUTE_PATH = "C:/Users/nml/OneDrive - NIST/Documents/NIST/WUI_smoke/"
@@ -51,6 +53,15 @@ os.chdir(ABSOLUTE_PATH)
 
 # Set output to display plots in the notebook
 output_notebook()
+
+# Import utils
+script_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(script_dir)
+grandparent_dir = os.path.dirname(parent_dir)
+sys.path.append(os.path.join(grandparent_dir, "general_utils", "scripts"))
+
+# utils
+from metadata_utils import get_script_metadata  # type: ignore[import-untyped]  # pylint: disable=import-error,wrong-import-position  # noqa: E402
 
 # Variable to set which burn to plot
 BURN_TO_PLOT = "burn9"
@@ -811,8 +822,16 @@ def get_pm25_equivalent_pollutant(instrument):
         return "PM2.5 (µg/m³)"  # Use PM2.5 for others
 
 
-def plot_burn_comparison(burn_to_plot=BURN_TO_PLOT):
-    """Plot PM2.5 equivalent data for all instruments for a single burn"""
+def plot_burn_comparison(burn_to_plot=BURN_TO_PLOT, script_metadata=None):
+    """Plot PM2.5 equivalent data for all instruments for a single burn
+
+    Args:
+        burn_to_plot: Burn ID to plot (e.g., "burn9")
+        script_metadata: Optional metadata string to include in the figure
+
+    Returns:
+        Bokeh column layout with plot and metadata
+    """
     print(f"Creating comparison plot for {burn_to_plot}...")
 
     # Get burn date
@@ -980,13 +999,23 @@ def plot_burn_comparison(burn_to_plot=BURN_TO_PLOT):
     p.legend.click_policy = "hide"
     p.legend.location = "top_right"
 
+    # Create metadata div if provided
+    if script_metadata:
+        div_text = f"<small>{script_metadata}</small>"
+        text_div = Div(text=div_text, width=800)
+        layout = column(p, text_div)
+    else:
+        layout = p
+
     # Save plot
     os.makedirs("./Paper_figures", exist_ok=True)
     html_filename = f"./Paper_figures/{burn_to_plot}_PM25_comparison.html"
     output_file(html_filename)
-    show(p)
+    show(layout)
 
     print(f"Plot saved to {html_filename}")
+
+    return layout
 
 
 def find_peak_concentrations():
@@ -1095,6 +1124,9 @@ def find_peak_concentrations():
 def main():
     """Main function to process all instruments and create peak concentration matrix"""
     try:
+        # Get script metadata
+        metadata = get_script_metadata()
+
         # Find peak concentrations for all instruments
         results_df = find_peak_concentrations()
 
@@ -1110,7 +1142,7 @@ def main():
 
         # Create comparison plot for the specified burn
         print(f"\nCreating comparison plot for {BURN_TO_PLOT}...")
-        plot_burn_comparison(BURN_TO_PLOT)
+        plot_burn_comparison(BURN_TO_PLOT, script_metadata=metadata)
 
     except (ValueError, TypeError, KeyError, AttributeError, FileNotFoundError, OSError) as e:
         print(f"Error in main function: {e}")
