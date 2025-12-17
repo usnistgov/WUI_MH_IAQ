@@ -1,4 +1,3 @@
-# pylint: disable=too-many-lines
 """
 WUI Peak Concentration Analysis: Multi-Instrument Time Series Processing
 
