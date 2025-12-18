@@ -40,15 +40,13 @@ Date: 2025
 import os
 import sys
 import traceback
+from pathlib import Path
 import pandas as pd
 import numpy as np
 from bokeh.plotting import figure, show
 from bokeh.io import output_notebook, output_file
 from bokeh.models import ColumnDataSource, Range1d, Div
 from bokeh.layouts import column
-
-import sys
-from pathlib import Path
 
 # Add repository root to path for portable data access
 script_dir = Path(__file__).parent

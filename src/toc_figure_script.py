@@ -24,13 +24,12 @@ Date: 2024-2025
 
 # %% IMPORT MODULES
 import os
+import sys
+import traceback
+from pathlib import Path
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib import rcParams
-
-import sys
-from pathlib import Path
 
 # Add repository root to path for portable data access
 script_dir = Path(__file__).parent
@@ -48,8 +47,8 @@ os.chdir(str(data_root))
 BURN_TO_PLOT = "burn9"
 
 # Load burn log once
-burn_log_path = str(get_common_file('burn_log'))
-burn_log = pd.read_excel(burn_log_path, sheet_name="Sheet2")
+BURN_LOG_PATH = str(get_common_file('burn_log'))
+burn_log = pd.read_excel(BURN_LOG_PATH, sheet_name="Sheet2")
 
 # Define instrument configurations
 INSTRUMENT_CONFIG = {
@@ -70,7 +69,7 @@ INSTRUMENT_CONFIG = {
             "burn3": {"apply_rolling_average": True},
             "burn6": {"custom_decay_time": True, "decay_end_offset": 0.25},
         },
-        "display_name": "OPC1",
+        "display_name": "OPC1B",
     },
     "AeroTrakK": {
         "file_path": str(get_instrument_path('aerotrak_kitchen') / 'all_data.xlsx'),
@@ -86,7 +85,7 @@ INSTRUMENT_CONFIG = {
         ],
         "datetime_column": "Date and Time",
         "special_cases": {},
-        "display_name": "OPC1",
+        "display_name": "OPC1K",
     },
     "DustTrak": {
         "file_path": "./burn_data/dusttrak/all_data.xlsx",
@@ -141,7 +140,7 @@ INSTRUMENT_CONFIG = {
         "special_cases": {
             "burn6": {"custom_decay_time": True, "decay_end_offset": 0.25}
         },
-        "display_name": "Nef+OPC2",
+        "display_name": "Nef+OPC2B",
     },
     "QuantAQK": {
         "file_path": str(get_instrument_path('quantaq_kitchen') / 'MOD-PM-00197-a6dd467a147a4d95a7b98a8a10ab4ea3.csv'),
@@ -151,7 +150,7 @@ INSTRUMENT_CONFIG = {
         "datetime_column": "timestamp_local",
         "burn_range": range(4, 11),
         "special_cases": {},
-        "display_name": "Nef+OPC2",
+        "display_name": "Nef+OPC2K",
     },
     "SMPS": {
         "file_path": "./burn_data/smps",
@@ -171,7 +170,7 @@ INSTRUMENT_CONFIG = {
 def create_naive_datetime(date_str, time_str):
     """Create a timezone-naive datetime object from date and time strings"""
     dt = pd.to_datetime(f"{date_str} {time_str}", errors="coerce")
-    if hasattr(dt, "tz") and dt.tz is not None:
+    if pd.notna(dt) and hasattr(dt, "tz") and dt.tz is not None:
         dt = dt.tz_localize(None)
     return dt
 
@@ -247,8 +246,11 @@ def process_aerotrak_data(file_path, instrument="AeroTrakB"):
             particle_size = g_mean([size_values[channel], next_size_value])
             particle_size_m = particle_size * 1e-6  # Convert size from µm to m
 
+            # Initialize variable for this iteration
+            new_diff_col_µg_m3 = f"PM{size_values[channel]}-{next_size_value} Diff (µg/m³)"
+
             diff_col = f"{channel} Diff (#)"
-            if diff_col in aerotrak_data.columns:
+            if diff_col in aerotrak_data.columns and volume_cm is not None:
                 particle_counts = aerotrak_data[diff_col]
 
                 # Calculate the volume of a single particle
@@ -259,9 +261,6 @@ def process_aerotrak_data(file_path, instrument="AeroTrakB"):
                 particle_mass = volume_per_particle * 1e6 * 1e6  # Convert to µg
 
                 # Create new column for mass concentration in µg/m³
-                new_diff_col_µg_m3 = (
-                    f"PM{size_values[channel]}-{next_size_value} Diff (µg/m³)"
-                )
                 aerotrak_data[new_diff_col_µg_m3] = (
                     particle_counts / (volume_cm * 1e-6)
                 ) * (particle_mass)
@@ -269,7 +268,7 @@ def process_aerotrak_data(file_path, instrument="AeroTrakB"):
 
             # Handle cumulative counts for PM concentrations
             cumul_col = f"{channel} Cumul (#)"
-            if cumul_col in aerotrak_data.columns:
+            if cumul_col in aerotrak_data.columns and new_diff_col_µg_m3 in aerotrak_data.columns:
                 # Create new PM concentration column from the Diff column
                 pm_column_name = f"PM{next_size_value} (µg/m³)"
                 aerotrak_data[pm_column_name] = aerotrak_data[new_diff_col_µg_m3]
@@ -285,18 +284,18 @@ def process_aerotrak_data(file_path, instrument="AeroTrakB"):
     ]
 
     # Calculate cumulative PM concentrations
-    for i in range(len(cumulative_columns)):
+    for i, col in enumerate(cumulative_columns):
         if i == 0:
-            aerotrak_data[cumulative_columns[i]] = aerotrak_data[pm_columns[i]]
+            aerotrak_data[col] = aerotrak_data[pm_columns[i]]
         else:
-            aerotrak_data[cumulative_columns[i]] = aerotrak_data[pm_columns[i]].add(
+            aerotrak_data[col] = aerotrak_data[pm_columns[i]].add(
                 aerotrak_data[cumulative_columns[i - 1]], fill_value=0
             )
 
     # Replace invalid entries with NaN for numeric columns only
     status_columns = ["Flow Status", "Laser Status"]
     valid_status = (aerotrak_data[status_columns] == "OK").all(axis=1)
-    for col in aerotrak_data.columns:
+    for col in list(aerotrak_data.columns):
         if pd.api.types.is_numeric_dtype(aerotrak_data[col]) and col not in [
             "Date and Time",
             "Sample Time",
@@ -336,6 +335,7 @@ def process_aerotrak_data(file_path, instrument="AeroTrakB"):
 
 # Function to calculate 5-minute rolling average for burn3
 def calculate_rolling_average_burn3(data):
+    """Calculate 5-minute rolling average for burn3 data"""
     burn3_date = burn_log[burn_log["Burn ID"] == "burn3"]["Date"].values[0]
     burn3_date = pd.to_datetime(burn3_date).date()
 
@@ -550,7 +550,7 @@ def process_smps_data(file_path, instrument="SMPS"):
                 smps_data["Start Time"] = pd.to_datetime(
                     smps_data["Start Time"], format="%H:%M:%S", errors="coerce"
                 )
-            except Exception:
+            except (ValueError, TypeError, KeyError, AttributeError):
                 continue
 
             if smps_data["Date"].isna().all() or smps_data["Start Time"].isna().all():
@@ -558,13 +558,16 @@ def process_smps_data(file_path, instrument="SMPS"):
 
             # Create datetime column by combining Date and Start Time
             try:
+                # Ensure Date and Start Time are datetime types before using strftime
+                date_series = pd.to_datetime(smps_data["Date"], errors="coerce")
+                time_series = pd.to_datetime(smps_data["Start Time"], errors="coerce")
                 smps_data["datetime"] = pd.to_datetime(
-                    smps_data["Date"].dt.strftime("%Y-%m-%d")
+                    date_series.dt.strftime("%Y-%m-%d")
                     + " "
-                    + smps_data["Start Time"].dt.strftime("%H:%M:%S"),
+                    + time_series.dt.strftime("%H:%M:%S"),
                     errors="coerce",
                 )
-            except Exception:
+            except (ValueError, TypeError, KeyError, AttributeError):
                 continue
 
             invalid_rows = smps_data["datetime"].isna().sum()
@@ -591,7 +594,7 @@ def process_smps_data(file_path, instrument="SMPS"):
                     )
                 )
                 smps_data["datetime"] = smps_data["mid_datetime"]
-            except Exception:
+            except (ValueError, TypeError, KeyError, AttributeError):
                 pass
 
             smps_data = smps_data.drop(
@@ -625,7 +628,7 @@ def process_smps_data(file_path, instrument="SMPS"):
                 smps_data["Total Concentration (µg/m³)"] = pd.to_numeric(
                     smps_data["Total Concentration (µg/m³)"], errors="coerce"
                 )
-            except Exception:
+            except (ValueError, TypeError, KeyError, AttributeError):
                 pass
 
             # Create a new DataFrame to avoid fragmentation warning
@@ -650,7 +653,7 @@ def process_smps_data(file_path, instrument="SMPS"):
                                 smps_data[col], errors="coerce"
                             )
                         new_data[bin_name] = pd.DataFrame(numeric_data).sum(axis=1)
-                    except Exception:
+                    except (ValueError, TypeError, KeyError, AttributeError):
                         new_data[bin_name] = pd.Series(np.nan, index=smps_data.index)
 
             # Get the burn_id for this date
@@ -658,10 +661,13 @@ def process_smps_data(file_path, instrument="SMPS"):
             if not burn_id_row.empty:
                 burn_id = burn_id_row["Burn ID"].iloc[0]
 
+                # Ensure datetime column is properly typed
+                datetime_col = pd.to_datetime(smps_data["datetime"], errors="coerce")
+
                 result_df = pd.DataFrame(
                     {
-                        "datetime": smps_data["datetime"],
-                        "Date": smps_data["datetime"].dt.date,
+                        "datetime": datetime_col,
+                        "Date": datetime_col.dt.date,
                         "burn_id": burn_id,
                         "Total Concentration (µg/m³)": smps_data[
                             "Total Concentration (µg/m³)"
@@ -974,7 +980,6 @@ def main():
 
     except Exception as e:
         print(f"Error in main function: {e}")
-        import traceback
         traceback.print_exc()
 
 
