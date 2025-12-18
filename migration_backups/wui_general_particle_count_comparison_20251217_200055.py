@@ -3,17 +3,6 @@ WUI General Particle Count Comparison: Multi-Instrument Analysis
 
 This script creates comprehensive comparison plots of particle number concentrations
 from multiple instruments across all wildland-urban interface smoke experiments.
-
-import sys
-from pathlib import Path
-
-# Add repository root to path for portable data access
-script_dir = Path(__file__).parent
-repo_root = script_dir.parent
-sys.path.insert(0, str(repo_root))
-
-from src.data_paths import get_data_root, get_instrument_path, get_common_file
-
 It generates separate visualizations for bedroom and kitchen locations to evaluate
 spatial variation and instrument agreement.
 
@@ -95,8 +84,8 @@ from bokeh.palettes import Blues, Greens, Reds
 # %% Configuration parameters
 
 # Set paths
-data_root = get_data_root()  # Portable path - auto-configured
-output_dir = os.path.join(absolute_path, str(get_common_file('output_figures')))
+absolute_path = "C:/Users/nml/OneDrive - NIST/Documents/NIST/WUI_smoke/"
+output_dir = os.path.join(absolute_path, "./Paper_figures/")
 
 # Burns to process (all burns by default)
 burn_numbers = [f"burn{i}" for i in range(1, 11)]  # burn1 through burn10
@@ -464,7 +453,7 @@ def create_figure(title):
 
 # %% Load burn log
 print("Loading burn log...")
-burn_log_path = os.path.join(absolute_path, str(get_common_file('burn_log')))
+burn_log_path = os.path.join(absolute_path, "burn_log.xlsx")
 burn_log = pd.read_excel(burn_log_path, sheet_name="Sheet2")
 
 # Create dictionary to store garage closed times for each burn
@@ -504,10 +493,10 @@ if "AeroTrak" in selected_instruments:
 
     # Load bedroom AeroTrak data
     aerotrak_b_path = os.path.join(
-        absolute_path, str(get_instrument_path('aerotrak_bedroom') / 'all_data.xlsx')
+        absolute_path, "./burn_data/aerotraks/bedroom2/all_data.xlsx"
     )
     aerotrak_k_path = os.path.join(
-        absolute_path, str(get_instrument_path('aerotrak_kitchen') / 'all_data.xlsx')
+        absolute_path, "./burn_data/aerotraks/kitchen/all_data.xlsx"
     )
 
     # Process Bedroom AeroTrak
@@ -733,11 +722,11 @@ if "QuantAQ" in selected_instruments:
         # Load QuantAQ data for bedroom and kitchen
         quantaq_b_path = os.path.join(
             absolute_path,
-            str(get_instrument_path('quantaq_bedroom') / 'MOD-PM-00194-b0fc215029fa4852b926bc50b28fda5a.csv'),
+            "./burn_data/quantaq/MOD-PM-00194-b0fc215029fa4852b926bc50b28fda5a.csv",
         )
         quantaq_k_path = os.path.join(
             absolute_path,
-            str(get_instrument_path('quantaq_kitchen') / 'MOD-PM-00197-a6dd467a147a4d95a7b98a8a10ab4ea3.csv'),
+            "./burn_data/quantaq/MOD-PM-00197-a6dd467a147a4d95a7b98a8a10ab4ea3.csv",
         )
 
         # Process Bedroom QuantAQ

@@ -205,3 +205,41 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# ==============================================================================
+# WUI Research Project Specific
+# ==============================================================================
+
+# Data configuration (contains local paths - DO NOT COMMIT)
+data_config.json
+
+# Data directories (actual data stays local)
+data/aerotrak_bedroom/*
+data/aerotrak_kitchen/*
+data/dusttrak/*
+data/purpleair/*
+data/quantaq/*
+data/smps/*
+data/miniams/*
+data/vaisalaht/*
+!data/**/README.md
+!data/**/.gitkeep
+
+# Results (generated outputs - optional to commit)
+results/figures/*.png
+results/figures/*.html
+results/figures/*.pdf
+results/tables/*.csv
+results/tables/*.xlsx
+results/output_data/*
+!results/**/.gitkeep
+
+# OS Specific
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Temporary files
+*.tmp
+~$*.xlsx
+~$*.docx

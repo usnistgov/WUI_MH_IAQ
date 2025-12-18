@@ -81,17 +81,6 @@ from datetime import datetime as dt
 from scipy import optimize
 from bokeh.plotting import figure, show, output_file, output_notebook
 from bokeh.models import (
-
-import sys
-from pathlib import Path
-
-# Add repository root to path for portable data access
-script_dir = Path(__file__).parent
-repo_root = script_dir.parent
-sys.path.insert(0, str(repo_root))
-
-from src.data_paths import get_data_root, get_instrument_path, get_common_file
-
     ColumnDataSource,
     Band,
     Label,
@@ -110,8 +99,8 @@ from functools import reduce
 
 # %% RUN User defines directory path for datset, dataset used, and dataset final location
 # User set absolute_path
-data_root = get_data_root()  # Portable path - auto-configured  # USER ENTERED PROJECT PATH
-os.chdir(str(data_root))
+absolute_path = "C:/Users/nml/OneDrive - NIST/Documents/NIST/WUI_smoke/"  # USER ENTERED PROJECT PATH
+os.chdir(absolute_path)
 
 # use only one dataset at a time
 dataset = "QuantAQb"  # USER ENTERED selected
@@ -304,10 +293,10 @@ elif dataset in ("QuantAQb", "QuantAQk"):
 
     # Load the CSV files into DataFrames
     bedroom_df = load_and_process_csv(
-        str(get_instrument_path('quantaq_bedroom') / 'MOD-PM-00194-b0fc215029fa4852b926bc50b28fda5a.csv')
+        "./burn_data/quantaq/MOD-PM-00194-b0fc215029fa4852b926bc50b28fda5a.csv"
     )
     kitchen_df = load_and_process_csv(
-        str(get_instrument_path('quantaq_kitchen') / 'MOD-PM-00197-a6dd467a147a4d95a7b98a8a10ab4ea3.csv')
+        "./burn_data/quantaq/MOD-PM-00197-a6dd467a147a4d95a7b98a8a10ab4ea3.csv"
     )
 
     # Define the dates for each Burn

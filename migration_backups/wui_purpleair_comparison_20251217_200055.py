@@ -71,21 +71,10 @@ from bokeh.models.tools import HoverTool, CrosshairTool, Span
 from bokeh.layouts import gridplot
 from bokeh.models import CrosshairTool, Span, Legend, LegendItem
 
-import sys
-from pathlib import Path
-
-# Add repository root to path for portable data access
-script_dir = Path(__file__).parent
-repo_root = script_dir.parent
-sys.path.insert(0, str(repo_root))
-
-from src.data_paths import get_data_root, get_instrument_path, get_common_file
-
-
 # %% RUN User defines directory path for datset, dataset used, and dataset final location
 # User set absolute_path
-data_root = get_data_root()  # Portable path - auto-configuredburn_data/purpleair/"  # USER ENTERED PROJECT PATH
-os.chdir(str(data_root))
+absolute_path = "C:/Users/nml/OneDrive - NIST/Documents/NIST/WUI_smoke/burn_data/purpleair/"  # USER ENTERED PROJECT PATH
+os.chdir(absolute_path)
 
 # use only one dataset at a time
 dataset = "garage-kitchen"  # USER ENTERED selected
@@ -123,7 +112,7 @@ df_5min["garage"] = df.garage.resample("5min").mean()
 # output_notebook()
 # For visualization to static HTML
 output_file(
-    str(get_common_file('output_figures') / "PurpleAirComparison.html")
+    "C:/Users/nml/OneDrive - NIST/Documents/NIST/WUI_smoke/Paper_figures/PurpleAirComparison.html"
 )
 
 p = figure(y_range=[0, 20], max_width=800, height=500, x_axis_type="datetime")

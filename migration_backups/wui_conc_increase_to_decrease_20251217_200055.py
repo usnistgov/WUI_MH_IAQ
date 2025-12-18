@@ -66,17 +66,6 @@ from datetime import datetime
 from bokeh.plotting import figure, show
 from bokeh.io import output_notebook, output_file
 from bokeh.models import (
-
-import sys
-from pathlib import Path
-
-# Add repository root to path for portable data access
-script_dir = Path(__file__).parent
-repo_root = script_dir.parent
-sys.path.insert(0, str(repo_root))
-
-from src.data_paths import get_data_root, get_instrument_path, get_common_file
-
     ColumnDataSource,
     DatetimeTickFormatter,
     HoverTool,
@@ -88,17 +77,17 @@ from src.data_paths import get_data_root, get_instrument_path, get_common_file
 from bokeh.palettes import Blues, Greens, Reds, Purples
 
 # Set the absolute path for the data files
-data_root = get_data_root()  # Portable path - auto-configured
+absolute_path = "C:/Users/nml/OneDrive - NIST/Documents/NIST/WUI_smoke/"
 
 # Directory for output
-output_dir = os.path.join(absolute_path, str(get_common_file('output_figures')))
+output_dir = os.path.join(absolute_path, "./Paper_figures/")
 
 # Set the burn# variable (you can change this as needed)
 burn_number = "burn10"  # Replace with the chosen burn
 
 # %%
 # Load the burn log to find the burn date
-burn_log_path = os.path.join(absolute_path, str(get_common_file('burn_log')))
+burn_log_path = os.path.join(absolute_path, "burn_log.xlsx")
 burn_log = pd.read_excel(burn_log_path, sheet_name="Sheet2")
 
 # Get the burn date based on the burn number
@@ -143,9 +132,9 @@ vocus_data.index = vocus_data.index + pd.Timedelta(hours=1)  # Shift by one hour
 
 # %%
 # Load Aerotrak data for the given burn date
-# aerotrak_path = os.path.join(absolute_path, str(get_instrument_path('aerotrak_bedroom') / 'all_data.xlsx')) #bedroom 2 data
+# aerotrak_path = os.path.join(absolute_path, 'burn_data/aerotraks/bedroom2/all_data.xlsx') #bedroom 2 data
 aerotrak_path = os.path.join(
-    absolute_path, str(get_instrument_path('aerotrak_kitchen') / 'all_data.xlsx')
+    absolute_path, "burn_data/aerotraks/kitchen/all_data.xlsx"
 )  # kitchen data
 aerotrak_data = pd.read_excel(
     aerotrak_path, parse_dates=["Date and Time"], index_col="Date and Time"
@@ -190,9 +179,9 @@ aerotrak_cumul_col = "Ch1 Cumul (#/cm³)"  # Adjust this based on your data
 
 # %%
 # Load Quantaq data for the given burn date
-# quantaq_path = os.path.join(absolute_path, str(get_instrument_path('quantaq_bedroom') / 'MOD-PM-00194-b0fc215029fa4852b926bc50b28fda5a.csv')) #bedroom 2 data
+# quantaq_path = os.path.join(absolute_path, 'burn_data/quantaq/MOD-PM-00194-b0fc215029fa4852b926bc50b28fda5a.csv') #bedroom 2 data
 quantaq_path = os.path.join(
-    absolute_path, str(get_instrument_path('quantaq_kitchen') / 'MOD-PM-00197-a6dd467a147a4d95a7b98a8a10ab4ea3.csv')
+    absolute_path, "burn_data/quantaq/MOD-PM-00197-a6dd467a147a4d95a7b98a8a10ab4ea3.csv"
 )  # kicten data
 quantaq_data = pd.read_csv(
     quantaq_path, parse_dates=["timestamp_local"], index_col="timestamp_local"

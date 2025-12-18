@@ -5,12 +5,21 @@
 # Import necessary libraries
 import pandas as pd
 import numpy as np
+from pathlib import Path
+import sys
 from bokeh.plotting import figure, show, save, output_file
 from bokeh.models import ColumnDataSource, Range1d
 from bokeh.models.formatters import NumeralTickFormatter
 from bokeh.layouts import column
 import matplotlib.pyplot as plt
 import os
+
+# Add repository root to path for portable data access
+script_dir = Path(__file__).parent
+repo_root = script_dir.parent
+sys.path.insert(0, str(repo_root))
+
+from src.data_paths import get_data_root, get_common_file
 
 # =============================================================================
 # CONSTANTS AND CONFIGURATION
@@ -20,8 +29,9 @@ import os
 MERV_13_SURFACE_AREA_PER_CRBOX = 3.87483096  # m² per CRBox
 MERV_12A_SURFACE_AREA_PER_CRBOX = 15.99609704  # m² per CRBox
 
-# Output directory for saving figures
-OUTPUT_DIR = r"C:\Users\nml\OneDrive - NIST\Documents\NIST\WUI_smoke\Paper_figures"
+# Output directory for saving figures - using portable path
+data_root = get_data_root()
+OUTPUT_DIR = str(get_common_file('output_figures'))
 
 # Create output directory if it doesn't exist
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -74,7 +84,7 @@ def read_instrument_cadr(instrument, pollutant_type):
     dict
         Dictionary with burn names as keys and CADR data (value and uncertainty) as values
     """
-    file_path = f"C:/Users/nml/OneDrive - NIST/Documents/NIST/WUI_smoke/burn_data/burn_calcs/{instrument}_decay_and_CADR.xlsx"
+    file_path = str(data_root / "burn_data" / "burn_calcs" / f"{instrument}_decay_and_CADR.xlsx")
     try:
         # Read Excel file and filter for relevant data
         df = pd.read_excel(file_path)
@@ -360,7 +370,7 @@ def create_data_sources(surface_areas, mean_cadr_vals, mean_uncertainty_vals,
 
 # Read reference data from Excel file
 print("Loading reference data...")
-reference_df = pd.read_excel("C:/Users/nml/OneDrive - NIST/Documents/NIST/WUI_smoke/burn_data/reference_surfacearea_and_cadr.xlsx")
+reference_df = pd.read_excel(str(data_root / "burn_data" / "reference_surfacearea_and_cadr.xlsx"))
 
 # Create a dictionary to map paper names to colors
 paper_colors = {}

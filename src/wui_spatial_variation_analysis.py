@@ -52,6 +52,8 @@ Date: 2025
 """
 
 import os
+import sys
+from pathlib import Path
 import warnings
 import traceback
 import pandas as pd
@@ -59,21 +61,32 @@ import numpy as np
 
 warnings.filterwarnings("ignore")
 
-# Set the absolute path for the dataset
-ABSOLUTE_PATH = "C:/Users/nml/OneDrive - NIST/Documents/NIST/WUI_smoke/"
-os.chdir(ABSOLUTE_PATH)
+# Add src to path for portable data access
+script_dir = Path(__file__).parent
+repo_root = script_dir.parent
+sys.path.insert(0, str(repo_root))
 
-# Output directory for results
-OUTPUT_PATH = "C:/Users/nml/OneDrive - NIST/Documents/NIST/WUI_smoke/burn_data"
+from src.data_paths import get_data_root, get_common_file, get_instrument_path
 
-# Load burn log
-BURN_LOG_PATH = "./burn_log.xlsx"
-burn_log = pd.read_excel(BURN_LOG_PATH, sheet_name="Sheet2")
+# Set up portable paths
+data_root = get_data_root()
+os.chdir(str(data_root))  # Keep this for backward compatibility with relative paths
 
-# Define instrument configurations (from wui_clean_air_delivery_rates_pmsizes_v5.py)
+# Output directory for results (now using portable path)
+OUTPUT_PATH = str(data_root / "burn_data")
+
+# Load burn log (using portable path)
+burn_log_path = get_common_file('burn_log')
+burn_log = pd.read_excel(burn_log_path, sheet_name="Sheet2")
+
+print(f"[OK] Data root: {data_root}")
+print(f"[OK] Output path: {OUTPUT_PATH}")
+print(f"[OK] Burn log loaded from: {burn_log_path}")
+
+# Define instrument configurations (using portable paths)
 INSTRUMENT_CONFIG = {
     "AeroTrakB": {
-        "file_path": "./burn_data/aerotraks/bedroom2/all_data.xlsx",
+        "file_path": str(get_instrument_path('aerotrak_bedroom') / "all_data.xlsx"),
         "time_shift": 2.16,
         "process_pollutants": [
             "PM0.5 (µg/m³)",
@@ -99,7 +112,7 @@ INSTRUMENT_CONFIG = {
         },
     },
     "AeroTrakK": {
-        "file_path": "./burn_data/aerotraks/kitchen/all_data.xlsx",
+        "file_path": str(get_instrument_path('aerotrak_kitchen') / "all_data.xlsx"),
         "time_shift": 5,
         "process_pollutants": [
             "PM0.5 (µg/m³)",
@@ -117,7 +130,7 @@ INSTRUMENT_CONFIG = {
         "baseline_burns": ["burn5", "burn6"],
     },
     "QuantAQB": {
-        "file_path": "./burn_data/quantaq/MOD-PM-00194-b0fc215029fa4852b926bc50b28fda5a.csv",
+        "file_path": str(get_instrument_path('quantaq_bedroom') / "MOD-PM-00194-b0fc215029fa4852b926bc50b28fda5a.csv"),
         "time_shift": -2.97,
         "process_pollutants": ["PM1 (µg/m³)", "PM2.5 (µg/m³)", "PM10 (µg/m³)"],
         "datetime_column": "timestamp_local",
@@ -128,7 +141,7 @@ INSTRUMENT_CONFIG = {
         },
     },
     "QuantAQK": {
-        "file_path": "./burn_data/quantaq/MOD-PM-00197-a6dd467a147a4d95a7b98a8a10ab4ea3.csv",
+        "file_path": str(get_instrument_path('quantaq_kitchen') / "MOD-PM-00197-a6dd467a147a4d95a7b98a8a10ab4ea3.csv"),
         "time_shift": 0,
         "process_pollutants": ["PM1 (µg/m³)", "PM2.5 (µg/m³)", "PM10 (µg/m³)"],
         "datetime_column": "timestamp_local",

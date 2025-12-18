@@ -77,17 +77,6 @@ from datetime import datetime as dt
 from scipy import optimize
 from bokeh.plotting import figure, show, output_file, output_notebook
 from bokeh.models import (
-
-import sys
-from pathlib import Path
-
-# Add repository root to path for portable data access
-script_dir = Path(__file__).parent
-repo_root = script_dir.parent
-sys.path.insert(0, str(repo_root))
-
-from src.data_paths import get_data_root, get_instrument_path, get_common_file
-
     ColumnDataSource,
     Band,
     Label,
@@ -103,8 +92,8 @@ from functools import reduce
 
 # %% RUN User defines directory path for datset, dataset used, and dataset final location
 # User set absolute_path
-data_root = get_data_root()  # Portable path - auto-configured  # USER ENTERED PROJECT PATH
-os.chdir(str(data_root))
+absolute_path = "C:/Users/nml/OneDrive - NIST/Documents/NIST/WUI_smoke/"  # USER ENTERED PROJECT PATH
+os.chdir(absolute_path)
 
 df = pd.read_excel("./burn_dates_decay_smps.xlsx", sheet_name="plotdata")
 

@@ -72,25 +72,25 @@ from bokeh.io import output_notebook, output_file
 from bokeh.models import ColumnDataSource, LinearAxis, Range1d, Legend, Div
 from bokeh.layouts import column
 
-import sys
-from pathlib import Path
+# User set absolute_paths (for two different systems)
+system1_path = "C:/Users/nml/OneDrive - NIST/Documents/NIST/WUI_smoke/"
+system2_path = "C:/Users/Nathan/Documents/NIST/WUI_smoke"
 
-# Add repository root to path for portable data access
-script_dir = Path(__file__).parent
-repo_root = script_dir.parent
-sys.path.insert(0, str(repo_root))
+# Check which system we're running on
+if os.path.exists(system1_path):
+    absolute_path = system1_path
+    print(f"Using system 1 path: {absolute_path}")
+elif os.path.exists(system2_path):
+    absolute_path = system2_path
+    print(f"Using system 2 path: {absolute_path}")
+else:
+    print("Neither system path exists, using current directory.")
+    absolute_path = os.getcwd()
 
-from src.data_paths import get_data_root, get_instrument_path, get_common_file
-
-
-# Path configuration now handled by portable data_paths module
-# Old system detection code removed - using get_data_root() instead
-data_root = get_data_root()
-
-os.chdir(str(data_root))
+os.chdir(absolute_path)
 
 # Load burn log for date reference
-burn_log_path = str(get_common_file('burn_log'))
+burn_log_path = "./burn_log.xlsx"
 burn_log = pd.read_excel(burn_log_path, sheet_name="Sheet2")
 
 # Get first and last burn dates to filter continuous data

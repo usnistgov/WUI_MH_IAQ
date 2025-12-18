@@ -69,17 +69,6 @@ from bokeh.io import output_notebook, output_file, reset_output
 from bokeh.models import ColumnDataSource, Div, Label, Arrow, NormalHead
 from bokeh.layouts import column
 
-import sys
-from pathlib import Path
-
-# Add repository root to path for portable data access
-script_dir = Path(__file__).parent
-repo_root = script_dir.parent
-sys.path.insert(0, str(repo_root))
-
-from src.data_paths import get_data_root, get_instrument_path, get_common_file
-
-
 # Set output to display plots in the notebook
 output_notebook()
 
@@ -96,13 +85,26 @@ TEXT_CONFIG = {
     "html_font_weight": "normal",  # For HTML div elements
 }
 
-# Path configuration now handled by portable data_paths module
-# Old system detection code removed - using get_data_root() instead
+# System path configuration - automatically detect which system we're on
+system_paths = [
+    "C:/Users/nml/OneDrive - NIST/Documents/NIST/WUI_smoke/",
+    "C:/Users/Nathan/Documents/NIST/WUI_smoke",
+]
 
-os.chdir(str(data_root))
+# Check which system path exists and set working directory
+for path in system_paths:
+    if os.path.exists(path):
+        absolute_path = path
+        print(f"Using path: {absolute_path}")
+        break
+else:
+    print("No predefined system path found, using current directory.")
+    absolute_path = os.getcwd()
+
+os.chdir(absolute_path)
 
 # Load burn log for reference data
-burn_log = pd.read_excel(str(get_common_file('burn_log')), sheet_name="Sheet2")
+burn_log = pd.read_excel("./burn_log.xlsx", sheet_name="Sheet2")
 
 # Global variables for decay parameters (calculated during processing)
 decay_parameters = {}
@@ -129,7 +131,7 @@ POLLUTANT_COLORS = {
 # Instrument configurations - contains all processing parameters for each instrument
 INSTRUMENT_CONFIG = {
     "AeroTrakB": {
-        "file_path": str(get_instrument_path('aerotrak_bedroom') / 'all_data.xlsx'),
+        "file_path": "./burn_data/aerotraks/bedroom2/all_data.xlsx",
         "process_function": "process_aerotrak_data",
         "time_shift": 2.16,  # Minutes to shift timestamps for synchronization
         "plot_pollutants": ["PM1 (µg/m³)", "PM3 (µg/m³)", "PM10 (µg/m³)"],
@@ -139,7 +141,7 @@ INSTRUMENT_CONFIG = {
         },
     },
     "AeroTrakK": {
-        "file_path": str(get_instrument_path('aerotrak_kitchen') / 'all_data.xlsx'),
+        "file_path": "./burn_data/aerotraks/kitchen/all_data.xlsx",
         "process_function": "process_aerotrak_data",
         "time_shift": 5,
         "plot_pollutants": ["PM1 (µg/m³)", "PM3 (µg/m³)", "PM10 (µg/m³)"],
@@ -165,7 +167,7 @@ INSTRUMENT_CONFIG = {
         "special_cases": {},
     },
     "QuantAQB": {
-        "file_path": str(get_instrument_path('quantaq_bedroom') / 'MOD-PM-00194-b0fc215029fa4852b926bc50b28fda5a.csv'),
+        "file_path": "./burn_data/quantaq/MOD-PM-00194-b0fc215029fa4852b926bc50b28fda5a.csv",
         "process_function": "process_quantaq_data",
         "time_shift": -2.97,
         "plot_pollutants": ["PM1 (µg/m³)", "PM2.5 (µg/m³)", "PM10 (µg/m³)"],
@@ -175,7 +177,7 @@ INSTRUMENT_CONFIG = {
         },
     },
     "QuantAQK": {
-        "file_path": str(get_instrument_path('quantaq_kitchen') / 'MOD-PM-00197-a6dd467a147a4d95a7b98a8a10ab4ea3.csv'),
+        "file_path": "./burn_data/quantaq/MOD-PM-00197-a6dd467a147a4d95a7b98a8a10ab4ea3.csv",
         "process_function": "process_quantaq_data",
         "time_shift": 0,
         "plot_pollutants": ["PM1 (µg/m³)", "PM2.5 (µg/m³)", "PM10 (µg/m³)"],
@@ -1107,7 +1109,7 @@ def plot_figure4_raw_data(data, instrument, output_to_file=False):
         calculate_decay_parameters(data, instrument)
 
     # Ensure output directory exists
-    os.makedirs(str(get_common_file('output_figures')), exist_ok=True)
+    os.makedirs("./Paper_figures", exist_ok=True)
 
     config = INSTRUMENT_CONFIG[instrument]
     pollutants = config["plot_pollutants"]

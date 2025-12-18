@@ -61,6 +61,7 @@ Date: 2024-2025
 
 import os
 import sys
+from pathlib import Path
 import pandas as pd
 from bokeh.io import output_file, show
 from bokeh.models import ColumnDataSource, Label, Range1d, Div, Span
@@ -68,18 +69,18 @@ from bokeh.plotting import figure
 from bokeh.models.formatters import NumeralTickFormatter
 from bokeh.layouts import column
 
-# Import utils
-script_dir = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.dirname(script_dir)
-sys.path.append(parent_dir)
+# Add repository root to path for portable data access
+script_dir = Path(__file__).parent
+repo_root = script_dir.parent
+sys.path.insert(0, str(repo_root))
 
+from src.data_paths import get_data_root, get_common_file
 from scripts import get_script_metadata  # pylint: disable=import-error,wrong-import-position
 
-# Configuration constants
-ABSOLUTE_PATH = (
-    "C:/Users/nml/OneDrive - NIST/Documents/NIST/WUI_smoke/burn_data/burn_calcs"
-)
-OUTPUT_PATH = "C:/Users/nml/OneDrive - NIST/Documents/NIST/WUI_smoke/Paper_figures"
+# Configuration constants - using portable paths
+data_root = get_data_root()
+ABSOLUTE_PATH = str(data_root / "burn_data" / "burn_calcs")
+OUTPUT_PATH = str(get_common_file('output_figures'))
 
 # Define burn labels for consistent naming across charts
 BURN_LABELS = {

@@ -48,11 +48,19 @@ Date: 2024-2025
 
 import pandas as pd
 import os
+import sys
+from pathlib import Path
 
-# Define the base directory containing the folders
-base_directory = (
-    r"C:\Users\nml\OneDrive - NIST\Documents\NIST\WUI_smoke\burn_data\aerotraks"
-)
+# Add repository root to path for portable data access
+script_dir = Path(__file__).parent
+repo_root = script_dir.parent
+sys.path.insert(0, str(repo_root))
+
+from src.data_paths import get_data_root
+
+# Define the base directory containing the folders - using portable path
+data_root = get_data_root()
+base_directory = str(data_root / "burn_data" / "aerotraks")
 
 # List of folders to process
 folders = ["bedroom2", "kitchen"]

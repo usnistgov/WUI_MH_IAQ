@@ -50,23 +50,12 @@ from bokeh.io import output_notebook, output_file
 from bokeh.models import ColumnDataSource, Div
 from bokeh.layouts import column
 
-import sys
-from pathlib import Path
-
-# Add repository root to path for portable data access
-script_dir = Path(__file__).parent
-repo_root = script_dir.parent
-sys.path.insert(0, str(repo_root))
-
-from src.data_paths import get_data_root, get_instrument_path, get_common_file
-
-
 # Set output to display plots in the notebook
 output_notebook()
 
 # Set the absolute path for the dataset
-data_root = get_data_root()  # Portable path - auto-configured
-os.chdir(str(data_root))
+absolute_path = "C:/Users/nml/OneDrive - NIST/Documents/NIST/WUI_smoke/"
+os.chdir(absolute_path)
 
 # Import utils
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -79,7 +68,7 @@ from scripts import get_script_metadata  # pylint: disable=import-error,wrong-im
 SAVE_FIGURES = True
 
 # Load burn log
-burn_log_path = str(get_common_file('burn_log'))
+burn_log_path = "./burn_log.xlsx"
 burn_log = pd.read_excel(burn_log_path, sheet_name="Sheet2")
 
 # Global variables
@@ -95,7 +84,7 @@ POLLUTANT_COLORS = {
 # Define instrument configurations (only AeroTrak instruments)
 INSTRUMENT_CONFIG = {
     "AeroTrakB": {
-        "file_path": str(get_instrument_path('aerotrak_bedroom') / 'all_data.xlsx'),
+        "file_path": "./burn_data/aerotraks/bedroom2/all_data.xlsx",
         "time_shift": 2.16,
         "plot_pollutants": ["PM1 (µg/m³)", "PM3 (µg/m³)", "PM10 (µg/m³)"],
         "normalize_pollutant": "PM3 (µg/m³)",
@@ -107,7 +96,7 @@ INSTRUMENT_CONFIG = {
         },
     },
     "AeroTrakK": {
-        "file_path": str(get_instrument_path('aerotrak_kitchen') / 'all_data.xlsx'),
+        "file_path": "./burn_data/aerotraks/kitchen/all_data.xlsx",
         "time_shift": 5,
         "plot_pollutants": ["PM1 (µg/m³)", "PM3 (µg/m³)", "PM10 (µg/m³)"],
         "normalize_pollutant": "PM3 (µg/m³)",
@@ -665,7 +654,7 @@ def create_burn4_comparison_plot():
 
     # Save plot only if flag is set
     if SAVE_FIGURES:
-        os.makedirs(str(get_common_file('output_figures')), exist_ok=True)
+        os.makedirs("./Paper_figures", exist_ok=True)
         html_filename = "./Paper_figures/SI_Burn4_AeroTrak_comparison.html"
         output_file(html_filename)
         show(layout)

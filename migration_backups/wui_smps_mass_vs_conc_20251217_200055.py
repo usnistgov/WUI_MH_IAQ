@@ -35,21 +35,10 @@ import pandas as pd
 from bokeh.plotting import figure, show, output_notebook
 from bokeh.models import LinearAxis, LogAxis, Range1d
 
-import sys
-from pathlib import Path
-
-# Add repository root to path for portable data access
-script_dir = Path(__file__).parent
-repo_root = script_dir.parent
-sys.path.insert(0, str(repo_root))
-
-from src.data_paths import get_data_root, get_instrument_path, get_common_file
-
-
 # RUN User defines directory path for dataset and dataset selection
 # User set absolute_path
-data_root = get_data_root()  # Portable path - auto-configured  # USER ENTERED PROJECT PATH
-os.chdir(str(data_root))
+absolute_path = "C:/Users/nml/OneDrive - NIST/Documents/NIST/WUI_smoke/"  # USER ENTERED PROJECT PATH
+os.chdir(absolute_path)
 
 # %% RUN Load and process SMPS #/cm3
 SMPS_path = "./burn_data/smps/MH_apollo_bed_05012024_numConc.xlsx"

@@ -111,12 +111,12 @@ else:  # laptop
 # ============================================================================
 
 # File paths
-BURN_LOG_PATH = os.path.join(BASE_PATH, str(get_common_file('burn_log')))
+BURN_LOG_PATH = os.path.join(BASE_PATH, "burn_log.xlsx")
 QUANTAQ_BEDROOM_PATH = os.path.join(
-    BASE_PATH, str(get_instrument_path('quantaq_bedroom') / 'MOD-PM-00194-b0fc215029fa4852b926bc50b28fda5a.csv')
+    BASE_PATH, "burn_data/quantaq/MOD-PM-00194-b0fc215029fa4852b926bc50b28fda5a.csv"
 )
 QUANTAQ_MORNING_ROOM_PATH = os.path.join(
-    BASE_PATH, str(get_instrument_path('quantaq_kitchen') / 'MOD-PM-00197-a6dd467a147a4d95a7b98a8a10ab4ea3.csv')
+    BASE_PATH, "burn_data/quantaq/MOD-PM-00197-a6dd467a147a4d95a7b98a8a10ab4ea3.csv"
 )
 
 # AHAM AC-1 test standard concentration range (#/cm³) for particles 0.1-1.0 µm

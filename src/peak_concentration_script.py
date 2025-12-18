@@ -47,9 +47,20 @@ from bokeh.io import output_notebook, output_file
 from bokeh.models import ColumnDataSource, Range1d, Div
 from bokeh.layouts import column
 
+import sys
+from pathlib import Path
+
+# Add repository root to path for portable data access
+script_dir = Path(__file__).parent
+repo_root = script_dir.parent
+sys.path.insert(0, str(repo_root))
+
+from src.data_paths import get_data_root, get_instrument_path, get_common_file
+
+
 # Set the absolute path for the dataset
-ABSOLUTE_PATH = "C:/Users/nml/OneDrive - NIST/Documents/NIST/WUI_smoke/"
-os.chdir(ABSOLUTE_PATH)
+data_root = get_data_root()  # Portable path - auto-configured
+os.chdir(str(data_root))
 
 # Set output to display plots in the notebook
 output_notebook()
@@ -65,13 +76,13 @@ from scripts import get_script_metadata  # pylint: disable=import-error,wrong-im
 BURN_TO_PLOT = "burn9"
 
 # Load burn log once
-BURN_LOG_PATH = "./burn_log.xlsx"
+BURN_LOG_PATH = str(get_common_file('burn_log'))
 burn_log = pd.read_excel(BURN_LOG_PATH, sheet_name="Sheet2")
 
 # Define instrument configurations
 INSTRUMENT_CONFIG = {
     "AeroTrakB": {
-        "file_path": "./burn_data/aerotraks/bedroom2/all_data.xlsx",
+        "file_path": str(get_instrument_path('aerotrak_bedroom') / 'all_data.xlsx'),
         "process_function": "process_aerotrak_data",
         "time_shift": 2.16,
         "process_pollutants": [
@@ -89,7 +100,7 @@ INSTRUMENT_CONFIG = {
         },
     },
     "AeroTrakK": {
-        "file_path": "./burn_data/aerotraks/kitchen/all_data.xlsx",
+        "file_path": str(get_instrument_path('aerotrak_kitchen') / 'all_data.xlsx'),
         "process_function": "process_aerotrak_data",
         "time_shift": 5,
         "process_pollutants": [
@@ -144,7 +155,7 @@ INSTRUMENT_CONFIG = {
         "special_cases": {},
     },
     "QuantAQB": {
-        "file_path": "./burn_data/quantaq/MOD-PM-00194-b0fc215029fa4852b926bc50b28fda5a.csv",
+        "file_path": str(get_instrument_path('quantaq_bedroom') / 'MOD-PM-00194-b0fc215029fa4852b926bc50b28fda5a.csv'),
         "process_function": "process_quantaq_data",
         "time_shift": -2.97,
         "process_pollutants": ["PM1 (µg/m³)", "PM2.5 (µg/m³)", "PM10 (µg/m³)"],
@@ -155,7 +166,7 @@ INSTRUMENT_CONFIG = {
         },
     },
     "QuantAQK": {
-        "file_path": "./burn_data/quantaq/MOD-PM-00197-a6dd467a147a4d95a7b98a8a10ab4ea3.csv",
+        "file_path": str(get_instrument_path('quantaq_kitchen') / 'MOD-PM-00197-a6dd467a147a4d95a7b98a8a10ab4ea3.csv'),
         "process_function": "process_quantaq_data",
         "time_shift": 0,
         "process_pollutants": ["PM1 (µg/m³)", "PM2.5 (µg/m³)", "PM10 (µg/m³)"],
@@ -1006,7 +1017,7 @@ def plot_burn_comparison(burn_to_plot=BURN_TO_PLOT, script_metadata=None):
         layout = p
 
     # Save plot
-    os.makedirs("./Paper_figures", exist_ok=True)
+    os.makedirs(str(get_common_file('output_figures')), exist_ok=True)
     html_filename = f"./Paper_figures/{burn_to_plot}_PM25_comparison.html"
     output_file(html_filename)
     show(layout)

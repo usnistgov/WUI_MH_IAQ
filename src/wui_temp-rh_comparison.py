@@ -71,12 +71,22 @@ from bokeh.models import LinearAxis, Range1d
 
 # %% RUN User defines directory path for dataset
 # User set directory path
-directory_path = "C:/Users/nml/OneDrive - NIST/Documents/NIST/WUI_smoke/"
+# Portable data path - configured via data_config.json
+# (Keeping this variable name for backward compatibility)
+from pathlib import Path
+import sys
+script_dir = Path(__file__).parent
+repo_root = script_dir.parent
+sys.path.insert(0, str(repo_root))
+from src.data_paths import get_data_root
+directory_path = str(get_data_root()) + "/"
 
-# Define file names for different burn data
-file_name_burn1 = "burn_data/vaisalaht/20240421-MH_Task_Logger_Data.xlsx"
-file_name_burns_2_to_9 = "burn_data/vaisalaht/20240429-MH_Data_Processed.xlsx"
-file_name_burn10 = "burn_data/vaisalaht/20240531-MH_Data_Processed.xlsx"
+# Define file names for different burn data (using portable paths)
+from src.data_paths import get_instrument_path
+vaisala_path = get_instrument_path('vaisala_th')
+file_name_burn1 = str(vaisala_path / "20240421-MH_Task_Logger_Data.xlsx")
+file_name_burns_2_to_9 = str(vaisala_path / "20240429-MH_Data_Processed.xlsx")
+file_name_burn10 = str(vaisala_path / "20240531-MH_Data_Processed.xlsx")
 
 # Define sheet names
 sheet_name_burn1 = "T_RH"
@@ -86,17 +96,14 @@ sheet_name_default = "Sheet1"
 # Function to read data for each Burn based on file names and sheet names
 def read_burn_data(burn):
     if burn == "Burn 1":
-        file_path = os.path.join(directory_path, file_name_burn1)
+        file_path = file_name_burn1
         df = pd.read_excel(file_path, sheet_name=sheet_name_burn1)
         df["datetime"] = pd.to_datetime(
             df["Date"].astype(str) + " " + df["Time"].astype(str), errors="coerce"
         )
         df.drop(["Date", "Time"], axis=1, inplace=True)
     else:
-        file_path = os.path.join(
-            directory_path,
-            file_name_burns_2_to_9 if burn != "Burn 10" else file_name_burn10,
-        )
+        file_path = file_name_burns_2_to_9 if burn != "Burn 10" else file_name_burn10
         df = pd.read_excel(file_path, sheet_name=sheet_name_default)
         # Create datetime column for Burn 2 through Burn 10
         if "Date" in df.columns and "Time" in df.columns:
@@ -176,12 +183,22 @@ from bokeh.models import LinearAxis, Range1d
 
 # %% RUN User defines directory path for dataset
 # User set directory path
-directory_path = "C:/Users/nml/OneDrive - NIST/Documents/NIST/WUI_smoke/"
+# Portable data path - configured via data_config.json
+# (Keeping this variable name for backward compatibility)
+from pathlib import Path
+import sys
+script_dir = Path(__file__).parent
+repo_root = script_dir.parent
+sys.path.insert(0, str(repo_root))
+from src.data_paths import get_data_root
+directory_path = str(get_data_root()) + "/"
 
-# Define file names for different burn data
-file_name_burn1 = "burn_data/vaisalaht/20240421-MH_Task_Logger_Data.xlsx"
-file_name_burns_2_to_9 = "burn_data/vaisalaht/20240429-MH_Data_Processed.xlsx"
-file_name_burn10 = "burn_data/vaisalaht/20240531-MH_Data_Processed.xlsx"
+# Define file names for different burn data (using portable paths)
+from src.data_paths import get_instrument_path
+vaisala_path = get_instrument_path('vaisala_th')
+file_name_burn1 = str(vaisala_path / "20240421-MH_Task_Logger_Data.xlsx")
+file_name_burns_2_to_9 = str(vaisala_path / "20240429-MH_Data_Processed.xlsx")
+file_name_burn10 = str(vaisala_path / "20240531-MH_Data_Processed.xlsx")
 
 # Define sheet names
 sheet_name_burn1 = "T_RH"
@@ -191,17 +208,14 @@ sheet_name_default = "Sheet1"
 # Function to read data for each Burn based on file names and sheet names
 def read_burn_data(burn):
     if burn == "Burn 1":
-        file_path = os.path.join(directory_path, file_name_burn1)
+        file_path = file_name_burn1
         df = pd.read_excel(file_path, sheet_name=sheet_name_burn1)
         df["datetime"] = pd.to_datetime(
             df["Date"].astype(str) + " " + df["Time"].astype(str), errors="coerce"
         )
         df.drop(["Date", "Time"], axis=1, inplace=True)
     else:
-        file_path = os.path.join(
-            directory_path,
-            file_name_burns_2_to_9 if burn != "Burn 10" else file_name_burn10,
-        )
+        file_path = file_name_burns_2_to_9 if burn != "Burn 10" else file_name_burn10
         df = pd.read_excel(file_path, sheet_name=sheet_name_default)
         # Create datetime column for Burn 2 through Burn 10
         if "Date" in df.columns and "Time" in df.columns:
@@ -278,10 +292,11 @@ for burn in burn_dates.keys():
     data = burn_data[burn]
 
     # Define output file for each burn
-    output_file_path = os.path.join(
-        directory_path, f"Paper_figures/{burn}_Vaisala_Temperature_and_RH.html"
-    )
-    output_file(output_file_path)
+    # Use portable path for output figures
+    from src.data_paths import get_common_file
+    output_dir = get_common_file('output_figures')
+    output_file_path = output_dir / f"{burn}_Vaisala_Temperature_and_RH.html"
+    output_file(str(output_file_path))
 
     # Create a Bokeh figure
     p = figure(title=f"WUI: {burn}", width=800, height=500, x_axis_type="datetime")

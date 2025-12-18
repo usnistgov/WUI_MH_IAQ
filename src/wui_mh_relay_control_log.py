@@ -43,7 +43,16 @@ Date: 2024-2025
 
 # %%
 import os
+import sys
+from pathlib import Path
 import pandas as pd
+
+# Add repository root to path for portable data access
+script_dir = Path(__file__).parent
+repo_root = script_dir.parent
+sys.path.insert(0, str(repo_root))
+
+from src.data_paths import get_data_root
 
 
 def combine_data_files(input_directory, output_filename):
@@ -113,10 +122,9 @@ def combine_data_files(input_directory, output_filename):
             )
 
 
-# Define the input directory and output filename
-input_directory = (
-    r"C:\Users\nml\OneDrive - NIST\Documents\NIST\WUI_smoke\burn_data\relaycontrol"
-)
+# Define the input directory and output filename - using portable paths
+data_root = get_data_root()
+input_directory = str(data_root / "burn_data" / "relaycontrol")
 output_filename = os.path.join(input_directory, "MH_WUI_RelayControl_log.csv")
 
 # Call the function

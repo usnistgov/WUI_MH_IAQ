@@ -1,0 +1,97 @@
+{
+  "description": "WUI Fire Research Data Path Configuration Template",
+  "machine_name": "MACHINE_ID_HERE",
+  "data_root": "PATH_TO_YOUR_WUI_SMOKE_DATA_ROOT",
+
+  "instruments": {
+    "aerotrak_bedroom": {
+      "path": "PATH_TO_DATA_ROOT/burn_data/aerotraks/bedroom2",
+      "description": "AeroTrak 9510 optical particle counter - Bedroom2 location",
+      "file_pattern": "*.xlsx",
+      "notes": "Size-resolved PM (0.5-25 µm), time shift: 2.16 min"
+    },
+    "aerotrak_kitchen": {
+      "path": "PATH_TO_DATA_ROOT/burn_data/aerotraks/kitchen",
+      "description": "AeroTrak 9510 optical particle counter - Kitchen/Morning Room location",
+      "file_pattern": "*.xlsx",
+      "notes": "Size-resolved PM (0.5-25 µm), time shift: 5 min"
+    },
+    "dusttrak": {
+      "path": "PATH_TO_DATA_ROOT/burn_data/dusttrak",
+      "description": "TSI DustTrak DRX 8533 real-time aerosol monitor",
+      "file_pattern": "*.xlsx",
+      "notes": "PM1, PM2.5, PM4, PM10, PM15, time shift: 7 min"
+    },
+    "miniams": {
+      "path": "PATH_TO_DATA_ROOT/burn_data/mini-ams",
+      "description": "Mini-AMS (Aerosol Mass Spectrometer) - Chemical species data",
+      "file_pattern": "*.xlsx",
+      "notes": "Organic, Nitrate, Sulfate, Ammonium, Chloride (Burns 1-3 only)"
+    },
+    "purpleair": {
+      "path": "PATH_TO_DATA_ROOT/burn_data/purpleair",
+      "description": "PurpleAir PA-II-SD low-cost PM sensors",
+      "file_pattern": "*.xlsx",
+      "notes": "PM2.5 measurements (Burns 6-10 only)"
+    },
+    "quantaq_bedroom": {
+      "path": "PATH_TO_DATA_ROOT/burn_data/quantaq",
+      "description": "QuantAQ MODULAIR-PM sensor - Bedroom2 location (MOD-PM-00194)",
+      "file_pattern": "MOD-PM-00194*.csv",
+      "notes": "PM1, PM2.5, PM10, time shift: -2.97 min (Burns 4-10)"
+    },
+    "quantaq_kitchen": {
+      "path": "PATH_TO_DATA_ROOT/burn_data/quantaq",
+      "description": "QuantAQ MODULAIR-PM sensor - Kitchen location (MOD-PM-00197)",
+      "file_pattern": "MOD-PM-00197*.csv",
+      "notes": "PM1, PM2.5, PM10, time shift: 0 min (Burns 4-10)"
+    },
+    "smps": {
+      "path": "PATH_TO_DATA_ROOT/burn_data/smps",
+      "description": "TSI SMPS 3938 - Scanning Mobility Particle Sizer",
+      "file_pattern": "MH_apollo_bed_*_MassConc.xlsx",
+      "notes": "Ultrafine particle size distribution (9-437 nm)"
+    },
+    "vaisala_th": {
+      "path": "PATH_TO_DATA_ROOT/burn_data/vaisalaht",
+      "description": "Vaisala temperature and relative humidity sensors",
+      "file_pattern": "*.xlsx",
+      "notes": "Environmental monitoring across multiple locations"
+    }
+  },
+
+  "common_folders": {
+    "burn_log": "PATH_TO_DATA_ROOT/burn_log.xlsx",
+    "burn_dates_decay_aerotrak_bedroom": "PATH_TO_DATA_ROOT/burn_dates_decay_aerotraks_bedroom.xlsx",
+    "burn_dates_decay_aerotrak_kitchen": "PATH_TO_DATA_ROOT/burn_dates_decay_aerotraks_kitchen.xlsx",
+    "burn_dates_decay_smps": "PATH_TO_DATA_ROOT/burn_dates_decay_smps.xlsx",
+    "peak_concentrations": "PATH_TO_DATA_ROOT/burn_data/peak_concentrations_all_instruments.xlsx",
+    "spatial_variation": "PATH_TO_DATA_ROOT/burn_data/spatial_variation_analysis.xlsx",
+    "output_figures": "PATH_TO_DATA_ROOT/Paper_figures"
+  },
+
+  "notes": [
+    "SETUP INSTRUCTIONS:",
+    "1. Copy this file to 'data_config.json' in the repository root",
+    "2. Replace PATH_TO_YOUR_WUI_SMOKE_DATA_ROOT with your actual data directory",
+    "3. For Windows paths, use forward slashes (/) or double backslashes (\\\\)",
+    "",
+    "EXAMPLE CONFIGURATIONS:",
+    "",
+    "Desktop (NIST OneDrive):",
+    "  \"data_root\": \"C:/Users/nml/OneDrive - NIST/Documents/NIST/WUI_smoke\"",
+    "",
+    "Laptop (Lenovo-ThinkPad):",
+    "  \"data_root\": \"C:/Users/Nathan/Documents/NIST/WUI_smoke\"",
+    "",
+    "External Drive:",
+    "  \"data_root\": \"D:/Research/WUI_Data\"",
+    "",
+    "NOTES:",
+    "- AeroTrak instruments have different time shifts (bedroom: 2.16 min, kitchen: 5 min)",
+    "- MiniAMS data only available for Burns 1-3",
+    "- PurpleAir data only available for Burns 6-10",
+    "- QuantAQ sensors only used for Burns 4-10",
+    "- Each instrument folder should contain the data files matching the file_pattern"
+  ]
+}

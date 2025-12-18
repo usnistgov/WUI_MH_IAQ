@@ -73,26 +73,15 @@ from bokeh.models import ColorBar, LinearColorMapper, Range1d, Label, Div
 from bokeh.layouts import column
 from bokeh.palettes import Turbo256
 
-import sys
-from pathlib import Path
-
-# Add repository root to path for portable data access
-script_dir = Path(__file__).parent
-repo_root = script_dir.parent
-sys.path.insert(0, str(repo_root))
-
-from src.data_paths import get_data_root, get_instrument_path, get_common_file
-
-
 # Set output to display plots in the notebook
 output_notebook()
 
 # Set the path for the dataset (only using OneDrive path as requested)
-data_root = get_data_root()  # Portable path - auto-configured
-os.chdir(str(data_root))
+ABSOLUTE_PATH = "C:/Users/nml/OneDrive - NIST/Documents/NIST/WUI_smoke/"
+os.chdir(ABSOLUTE_PATH)
 
 # Create directory for figures if it doesn't exist
-os.makedirs(str(get_common_file('output_figures')), exist_ok=True)
+os.makedirs("./Paper_figures", exist_ok=True)
 
 # Define burn information - mapping between burn dates and descriptions
 BURN_INFO = {
@@ -109,7 +98,7 @@ BURN_INFO = {
 }
 
 # Load burn log once (kept in case needed for future reference)
-burn_log_path = str(get_common_file('burn_log'))
+burn_log_path = "./burn_log.xlsx"
 try:
     burn_log = pd.read_excel(burn_log_path, sheet_name="Sheet2")
     print(f"Successfully loaded burn log with {len(burn_log)} entries")

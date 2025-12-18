@@ -78,29 +78,18 @@ from bokeh.io import output_notebook, output_file
 from bokeh.models import ColumnDataSource, DatetimeTickFormatter, FixedTicker
 from bokeh.palettes import Reds
 
-import sys
-from pathlib import Path
-
-# Add repository root to path for portable data access
-script_dir = Path(__file__).parent
-repo_root = script_dir.parent
-sys.path.insert(0, str(repo_root))
-
-from src.data_paths import get_data_root, get_instrument_path, get_common_file
-
-
 # Set the absolute path for the data files
-data_root = get_data_root()  # Portable path - auto-configured
+absolute_path = "C:/Users/nml/OneDrive - NIST/Documents/NIST/WUI_smoke/"
 
 # Directory for output
-output_dir = os.path.join(absolute_path, str(get_common_file('output_figures')))
+output_dir = os.path.join(absolute_path, "./Paper_figures/")
 
 # Set the burn# variable (you can change this as needed)
 burn_number = "burn9"  # Replace with the chosen burn
 
 # %%
 # Load the burn log to find the burn dates
-burn_log_path = os.path.join(absolute_path, str(get_common_file('burn_log')))
+burn_log_path = os.path.join(absolute_path, "burn_log.xlsx")
 burn_log = pd.read_excel(burn_log_path, sheet_name="Sheet2")
 
 # Get the burn date based on the burn number

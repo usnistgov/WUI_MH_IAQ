@@ -58,29 +58,18 @@ from bokeh.plotting import figure, show
 from bokeh.io import output_file
 from bokeh.models import LegendItem, Span
 
-import sys
-from pathlib import Path
-
-# Add repository root to path for portable data access
-script_dir = Path(__file__).parent
-repo_root = script_dir.parent
-sys.path.insert(0, str(repo_root))
-
-from src.data_paths import get_data_root, get_instrument_path, get_common_file
-
-
 # Set paths and load data
-data_root = get_data_root()  # Portable path - auto-configured
-burn_log_path = os.path.join(absolute_path, str(get_common_file('burn_log')))
+absolute_path = "C:/Users/nml/OneDrive - NIST/Documents/NIST/WUI_smoke/"
+burn_log_path = os.path.join(absolute_path, "burn_log.xlsx")
 burn_log = pd.read_excel(burn_log_path, sheet_name="Sheet2")
 
 quantaq_b_path = os.path.join(
     absolute_path,
-    str(get_instrument_path('quantaq_bedroom') / 'MOD-PM-00194-b0fc215029fa4852b926bc50b28fda5a.csv'),
+    "./burn_data/quantaq/MOD-PM-00194-b0fc215029fa4852b926bc50b28fda5a.csv",
 )
 quantaq_k_path = os.path.join(
     absolute_path,
-    str(get_instrument_path('quantaq_kitchen') / 'MOD-PM-00197-a6dd467a147a4d95a7b98a8a10ab4ea3.csv'),
+    "./burn_data/quantaq/MOD-PM-00197-a6dd467a147a4d95a7b98a8a10ab4ea3.csv",
 )
 
 # Load QuantAQ data
@@ -164,7 +153,7 @@ p.add_layout(garage_closed_line)
 p.legend.items.append(LegendItem(label="Garage Closed", renderers=[p.renderers[-1]]))
 
 # Create directory if it doesn't exist
-output_dir = os.path.join(absolute_path, str(get_common_file('output_figures')))
+output_dir = os.path.join(absolute_path, "Paper_figures")
 os.makedirs(output_dir, exist_ok=True)
 
 # Save to file

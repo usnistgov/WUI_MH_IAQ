@@ -59,47 +59,28 @@ from scipy import stats
 # ============================================================================
 
 
-def detect_system():
-    """
-    Detect which system the script is running on
-
-    Returns
-    -------
-    str
-        'desktop' if running on desktop computer with OneDrive
-        'laptop' if running on laptop computer
-    """
-    desktop_onedrive_path = r"C:\Users\nml\OneDrive - NIST"
-    if os.path.exists(desktop_onedrive_path):
-        return "desktop"
-    return "laptop"
-
-
-# Detect system and set paths accordingly
-SYSTEM = detect_system()
-
-if SYSTEM == "desktop":
-    BASE_DIR = r"C:\Users\nml\OneDrive - NIST\Documents\NIST\WUI_smoke"
-else:  # laptop
-    BASE_DIR = r"C:\Users\Nathan\Documents\NIST\WUI_smoke"
-
-# Import metadata utilities
+# Use portable data paths - no longer need system detection!
 script_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(script_dir)
-sys.path.append(parent_dir)
+sys.path.insert(0, parent_dir)
 
+from src.data_paths import get_data_root, get_common_file
 from scripts import get_script_metadata
+
+# Get portable paths
+BASE_DIR = str(get_data_root())
+print(f"[OK] Using data directory: {BASE_DIR}")
 
 
 # ============================================================================
 # CONFIGURATION
 # ============================================================================
 
-# Input file path - Excel file with spatial variation analysis results
-EXCEL_FILE_PATH = os.path.join(BASE_DIR, "burn_data", "spatial_variation_analysis.xlsx")
+# Input file path - Excel file with spatial variation analysis results (using portable path)
+EXCEL_FILE_PATH = str(get_common_file('spatial_variation'))
 
-# Output directory for figures
-OUTPUT_DIR = os.path.join(BASE_DIR, "Paper_figures")
+# Output directory for figures (using portable path)
+OUTPUT_DIR = str(get_common_file('output_figures'))
 
 # Burns to analyze and their corresponding CR Box counts
 # Note: burn2 (4 CR Boxes) excluded due to data quality issues
@@ -581,9 +562,7 @@ def main():
     print("=" * 80)
     print("WUI SPATIAL VARIATION ANALYSIS - PLOTTING")
     print("=" * 80)
-    print(f"Running on {SYSTEM} system")
     print(f"Base directory: {BASE_DIR}")
-    print(f"Utils path: {UTILS_PATH}")
 
     # Check if base directory exists
     if not os.path.exists(BASE_DIR):
@@ -596,12 +575,12 @@ def main():
     print(f"\nOutput directory: {OUTPUT_DIR}")
 
     # Get script metadata
-    if METADATA_AVAILABLE:
+    try:
         metadata = get_script_metadata()
         print("Metadata loaded successfully")
-    else:
+    except Exception as e:
         metadata = "Metadata unavailable"
-        print("Metadata not available")
+        print(f"Metadata not available: {e}")
 
     # Load data
     print(f"\nLoading data from: {EXCEL_FILE_PATH}")

@@ -62,20 +62,9 @@ from functools import reduce
 from bokeh.plotting import figure, show, output_notebook, output_file
 from bokeh.models import Range1d
 
-import sys
-from pathlib import Path
-
-# Add repository root to path for portable data access
-script_dir = Path(__file__).parent
-repo_root = script_dir.parent
-sys.path.insert(0, str(repo_root))
-
-from src.data_paths import get_data_root, get_instrument_path, get_common_file
-
-
 # Set the project directory path
-data_root = get_data_root()  # Portable path - auto-configured  # USER ENTERED PROJECT PATH
-os.chdir(str(data_root))
+absolute_path = "C:/Users/nml/OneDrive - NIST/Documents/NIST/WUI_smoke/"  # USER ENTERED PROJECT PATH
+os.chdir(absolute_path)
 
 # User inputs for burn and burn_date
 burn = input("Enter the burn number (e.g., 10 for burn10): ")
@@ -173,7 +162,7 @@ start_time = pd.Timestamp(f"{burn_date} 09:03:00")
 SMPS_df["min_from_peak"] = (SMPS_df["Datetime"] - start_time).dt.total_seconds() / 60
 
 # %% RUN Load and Process QuantAQ Data
-csv_path = str(get_instrument_path('quantaq_bedroom') / 'MOD-PM-00194-b0fc215029fa4852b926bc50b28fda5a.csv')
+csv_path = "./burn_data/quantaq/MOD-PM-00194-b0fc215029fa4852b926bc50b28fda5a.csv"
 new_df = pd.read_csv(csv_path)
 
 # Reverse the order of the data and parse datetime

@@ -1,60 +1,77 @@
 """
-WUI TOC Figure: Single Burn PM2.5 Equivalent Comparison
+WUI Peak Concentration Analysis: Multi-Instrument Time Series Processing
 
-This script generates a high-quality figure for the Table of Contents (TOC) of a paper,
-showing PM2.5 equivalent data for all instruments for a single burn.
+Analyzes peak particulate matter concentrations during wildland-urban interface
+(WUI) smoke injection experiments across 10 burns. Processes data from multiple
+instruments to identify maximum concentrations and generate comparative plots.
 
-Figure Specifications:
-    - PNG format with transparent background
-    - Resolution: 550px wide × 1050px tall
-    - High DPI for publication quality
-    - X-axis: -1 to 3 hours (time since garage closed)
-    - Y-axis: 10^-2 to 10^5 µg/m³ (log scale)
+Instruments:
+    - AeroTrak (Bedroom/Kitchen): Size-resolved PM (0.5-25 µm)
+    - DustTrak: PM1, PM2.5, PM4, PM10, PM15
+    - MiniAMS: Chemical species (Burns 1-3 only)
+    - PurpleAir: PM2.5 (Burns 6-10 only)
+    - QuantAQ (Bedroom/Kitchen): PM1, PM2.5, PM10 (Burns 4-10 only)
+    - SMPS: Size-resolved particle concentrations
 
-Instrument Label Mapping:
-    - AeroTrak → OPC1
-    - DustTrak → Nef+OPC1
-    - PurpleAir → Nef1
-    - QuantAQ → Nef+OPC2
-    - SMPS → SMPS
+Workflow:
+    1. Load and synchronize instrument data with time shift corrections
+    2. Filter data by burn date and time windows
+    3. Identify peak concentrations during smoke injection
+    4. Generate Bokeh plots comparing all instruments for selected burn
+
+Outputs:
+    - peak_concentrations_all_instruments.xlsx: Peak values for all burns
+    - {burn_id}_PM25_comparison.html: Interactive time series plot
+
+Configuration:
+    - BURN_TO_PLOT: Selected burn for visualization (default: "burn9")
+    - INSTRUMENT_CONFIG: File paths, time shifts, and pollutant lists
+
+Notes:
+    - Times normalized to "garage door closed" event
+    - Concentrations in µg/m³ (mass) or #/cm³ (number)
+    - Burn 3 uses 5-min rolling average; Burn 6 has custom decay window
 
 Author: Nathan Lima
-Date: 2024-2025
+Date: 2025
 """
 
 # %% IMPORT MODULES
 import os
+import sys
+import traceback
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib import rcParams
-
-import sys
-from pathlib import Path
-
-# Add repository root to path for portable data access
-script_dir = Path(__file__).parent
-repo_root = script_dir.parent
-sys.path.insert(0, str(repo_root))
-
-from src.data_paths import get_data_root, get_instrument_path, get_common_file
-
+from bokeh.plotting import figure, show
+from bokeh.io import output_notebook, output_file
+from bokeh.models import ColumnDataSource, Range1d, Div
+from bokeh.layouts import column
 
 # Set the absolute path for the dataset
-data_root = get_data_root()  # Portable path - auto-configured
-os.chdir(str(data_root))
+ABSOLUTE_PATH = "C:/Users/nml/OneDrive - NIST/Documents/NIST/WUI_smoke/"
+os.chdir(ABSOLUTE_PATH)
+
+# Set output to display plots in the notebook
+output_notebook()
+
+# Import utils
+script_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(script_dir)
+sys.path.append(parent_dir)
+
+from scripts import get_script_metadata  # pylint: disable=import-error,wrong-import-position
 
 # Variable to set which burn to plot
 BURN_TO_PLOT = "burn9"
 
 # Load burn log once
-burn_log_path = str(get_common_file('burn_log'))
-burn_log = pd.read_excel(burn_log_path, sheet_name="Sheet2")
+BURN_LOG_PATH = "./burn_log.xlsx"
+burn_log = pd.read_excel(BURN_LOG_PATH, sheet_name="Sheet2")
 
 # Define instrument configurations
 INSTRUMENT_CONFIG = {
     "AeroTrakB": {
-        "file_path": str(get_instrument_path('aerotrak_bedroom') / 'all_data.xlsx'),
+        "file_path": "./burn_data/aerotraks/bedroom2/all_data.xlsx",
         "process_function": "process_aerotrak_data",
         "time_shift": 2.16,
         "process_pollutants": [
@@ -70,10 +87,9 @@ INSTRUMENT_CONFIG = {
             "burn3": {"apply_rolling_average": True},
             "burn6": {"custom_decay_time": True, "decay_end_offset": 0.25},
         },
-        "display_name": "OPC1",
     },
     "AeroTrakK": {
-        "file_path": str(get_instrument_path('aerotrak_kitchen') / 'all_data.xlsx'),
+        "file_path": "./burn_data/aerotraks/kitchen/all_data.xlsx",
         "process_function": "process_aerotrak_data",
         "time_shift": 5,
         "process_pollutants": [
@@ -86,7 +102,6 @@ INSTRUMENT_CONFIG = {
         ],
         "datetime_column": "Date and Time",
         "special_cases": {},
-        "display_name": "OPC1",
     },
     "DustTrak": {
         "file_path": "./burn_data/dusttrak/all_data.xlsx",
@@ -103,7 +118,6 @@ INSTRUMENT_CONFIG = {
         "special_cases": {
             "burn6": {"custom_decay_time": True, "decay_end_offset": 0.25}
         },
-        "display_name": "Nef+OPC1",
     },
     "MiniAMS": {
         "file_path": "./burn_data/mini-ams/WUI_AMS_Species.xlsx",
@@ -119,7 +133,6 @@ INSTRUMENT_CONFIG = {
         "datetime_column": "DateTime",
         "burn_range": range(1, 4),  # Burns 1-3 only
         "special_cases": {},
-        "display_name": "MiniAMS",
     },
     "PurpleAirK": {
         "file_path": "./burn_data/purpleair/garage-kitchen.xlsx",
@@ -129,10 +142,9 @@ INSTRUMENT_CONFIG = {
         "datetime_column": "DateTime",
         "burn_range": range(6, 11),
         "special_cases": {},
-        "display_name": "Nef1",
     },
     "QuantAQB": {
-        "file_path": str(get_instrument_path('quantaq_bedroom') / 'MOD-PM-00194-b0fc215029fa4852b926bc50b28fda5a.csv'),
+        "file_path": "./burn_data/quantaq/MOD-PM-00194-b0fc215029fa4852b926bc50b28fda5a.csv",
         "process_function": "process_quantaq_data",
         "time_shift": -2.97,
         "process_pollutants": ["PM1 (µg/m³)", "PM2.5 (µg/m³)", "PM10 (µg/m³)"],
@@ -141,17 +153,15 @@ INSTRUMENT_CONFIG = {
         "special_cases": {
             "burn6": {"custom_decay_time": True, "decay_end_offset": 0.25}
         },
-        "display_name": "Nef+OPC2",
     },
     "QuantAQK": {
-        "file_path": str(get_instrument_path('quantaq_kitchen') / 'MOD-PM-00197-a6dd467a147a4d95a7b98a8a10ab4ea3.csv'),
+        "file_path": "./burn_data/quantaq/MOD-PM-00197-a6dd467a147a4d95a7b98a8a10ab4ea3.csv",
         "process_function": "process_quantaq_data",
         "time_shift": 0,
         "process_pollutants": ["PM1 (µg/m³)", "PM2.5 (µg/m³)", "PM10 (µg/m³)"],
         "datetime_column": "timestamp_local",
         "burn_range": range(4, 11),
         "special_cases": {},
-        "display_name": "Nef+OPC2",
     },
     "SMPS": {
         "file_path": "./burn_data/smps",
@@ -162,7 +172,6 @@ INSTRUMENT_CONFIG = {
         "special_cases": {
             "burn6": {"custom_decay_time": True, "decay_end_offset": 0.25}
         },
-        "display_name": "SMPS",
     },
 }
 
@@ -171,13 +180,13 @@ INSTRUMENT_CONFIG = {
 def create_naive_datetime(date_str, time_str):
     """Create a timezone-naive datetime object from date and time strings"""
     dt = pd.to_datetime(f"{date_str} {time_str}", errors="coerce")
-    if hasattr(dt, "tz") and dt.tz is not None:
+    if pd.notna(dt) and hasattr(dt, "tz") and dt.tz is not None:
         dt = dt.tz_localize(None)
     return dt
 
 
 # Modified apply_time_shift function
-def apply_time_shift(df, instrument, burn_id, burn_date):
+def apply_time_shift(df, instrument, _burn_id, burn_date):
     """Apply time shift based on instrument configuration"""
     time_shift = INSTRUMENT_CONFIG[instrument].get("time_shift", 0)
     datetime_column = INSTRUMENT_CONFIG[instrument].get(
@@ -197,6 +206,16 @@ def apply_time_shift(df, instrument, burn_id, burn_date):
 
 # Helper function to filter data by burn dates
 def filter_by_burn_dates(data, burn_range, datetime_column):
+    """Filter data to only include rows from specified burn dates
+
+    Args:
+        data: DataFrame to filter
+        burn_range: Range of burn numbers to include
+        datetime_column: Name of the datetime column in the data
+
+    Returns:
+        Filtered DataFrame containing only data from the specified burn dates
+    """
     burn_ids = [f"burn{i}" for i in burn_range]
     burn_dates = burn_log[burn_log["Burn ID"].isin(burn_ids)]["Date"]
     burn_dates = pd.to_datetime(burn_dates)
@@ -228,6 +247,7 @@ def process_aerotrak_data(file_path, instrument="AeroTrakB"):
 
     # Check for the volume column and convert it to cm³
     volume_column = "Volume (L)"
+    volume_cm = None
     if volume_column in aerotrak_data.columns:
         aerotrak_data["Volume (cm³)"] = aerotrak_data[volume_column] * 1000
         volume_cm = aerotrak_data["Volume (cm³)"]
@@ -247,8 +267,11 @@ def process_aerotrak_data(file_path, instrument="AeroTrakB"):
             particle_size = g_mean([size_values[channel], next_size_value])
             particle_size_m = particle_size * 1e-6  # Convert size from µm to m
 
+            # Initialize variable for this iteration
+            new_diff_col_µg_m3 = f"PM{size_values[channel]}-{next_size_value} Diff (µg/m³)"
+
             diff_col = f"{channel} Diff (#)"
-            if diff_col in aerotrak_data.columns:
+            if diff_col in aerotrak_data.columns and volume_cm is not None:
                 particle_counts = aerotrak_data[diff_col]
 
                 # Calculate the volume of a single particle
@@ -259,9 +282,6 @@ def process_aerotrak_data(file_path, instrument="AeroTrakB"):
                 particle_mass = volume_per_particle * 1e6 * 1e6  # Convert to µg
 
                 # Create new column for mass concentration in µg/m³
-                new_diff_col_µg_m3 = (
-                    f"PM{size_values[channel]}-{next_size_value} Diff (µg/m³)"
-                )
                 aerotrak_data[new_diff_col_µg_m3] = (
                     particle_counts / (volume_cm * 1e-6)
                 ) * (particle_mass)
@@ -269,7 +289,7 @@ def process_aerotrak_data(file_path, instrument="AeroTrakB"):
 
             # Handle cumulative counts for PM concentrations
             cumul_col = f"{channel} Cumul (#)"
-            if cumul_col in aerotrak_data.columns:
+            if cumul_col in aerotrak_data.columns and new_diff_col_µg_m3 in aerotrak_data.columns:
                 # Create new PM concentration column from the Diff column
                 pm_column_name = f"PM{next_size_value} (µg/m³)"
                 aerotrak_data[pm_column_name] = aerotrak_data[new_diff_col_µg_m3]
@@ -285,18 +305,18 @@ def process_aerotrak_data(file_path, instrument="AeroTrakB"):
     ]
 
     # Calculate cumulative PM concentrations
-    for i in range(len(cumulative_columns)):
+    for i, col in enumerate(cumulative_columns):
         if i == 0:
-            aerotrak_data[cumulative_columns[i]] = aerotrak_data[pm_columns[i]]
+            aerotrak_data[col] = aerotrak_data[pm_columns[i]]
         else:
-            aerotrak_data[cumulative_columns[i]] = aerotrak_data[pm_columns[i]].add(
+            aerotrak_data[col] = aerotrak_data[pm_columns[i]].add(
                 aerotrak_data[cumulative_columns[i - 1]], fill_value=0
             )
 
     # Replace invalid entries with NaN for numeric columns only
     status_columns = ["Flow Status", "Laser Status"]
     valid_status = (aerotrak_data[status_columns] == "OK").all(axis=1)
-    for col in aerotrak_data.columns:
+    for col in list(aerotrak_data.columns):
         if pd.api.types.is_numeric_dtype(aerotrak_data[col]) and col not in [
             "Date and Time",
             "Sample Time",
@@ -336,6 +356,14 @@ def process_aerotrak_data(file_path, instrument="AeroTrakB"):
 
 # Function to calculate 5-minute rolling average for burn3
 def calculate_rolling_average_burn3(data):
+    """Calculate 5-minute rolling average for burn3 data to reduce noise
+
+    Args:
+        data: DataFrame containing AeroTrak data for multiple burns
+
+    Returns:
+        DataFrame with rolling average applied to burn3 data
+    """
     burn3_date = burn_log[burn_log["Burn ID"] == "burn3"]["Date"].values[0]
     burn3_date = pd.to_datetime(burn3_date).date()
 
@@ -347,18 +375,18 @@ def calculate_rolling_average_burn3(data):
     rolling_avg_data = {}
 
     numeric_columns = burn3_data.select_dtypes(include=[np.number]).columns
-    for column in numeric_columns:
-        rolling_avg_data[column] = (
-            burn3_data[column]
+    for col in numeric_columns:
+        rolling_avg_data[col] = (
+            burn3_data[col]
             .rolling(pd.Timedelta(minutes=5))
             .mean()
-            .astype(burn3_data[column].dtype)
+            .astype(burn3_data[col].dtype)
         )
 
     status_columns = ["Flow Status", "Instrument Status", "Laser Status"]
-    for column in status_columns:
-        if column in burn3_data.columns:
-            rolling_avg_data[column] = burn3_data[column].iloc[0]
+    for col in status_columns:
+        if col in burn3_data.columns:
+            rolling_avg_data[col] = burn3_data[col].iloc[0]
 
     rolling_avg_df = pd.DataFrame(rolling_avg_data, index=burn3_data.index)
     rolling_avg_df.reset_index(inplace=True)
@@ -550,7 +578,7 @@ def process_smps_data(file_path, instrument="SMPS"):
                 smps_data["Start Time"] = pd.to_datetime(
                     smps_data["Start Time"], format="%H:%M:%S", errors="coerce"
                 )
-            except Exception:
+            except (ValueError, TypeError, KeyError, AttributeError):
                 continue
 
             if smps_data["Date"].isna().all() or smps_data["Start Time"].isna().all():
@@ -558,13 +586,16 @@ def process_smps_data(file_path, instrument="SMPS"):
 
             # Create datetime column by combining Date and Start Time
             try:
+                # Ensure Date and Start Time are datetime types before using strftime
+                date_series = pd.to_datetime(smps_data["Date"], errors="coerce")
+                time_series = pd.to_datetime(smps_data["Start Time"], errors="coerce")
                 smps_data["datetime"] = pd.to_datetime(
-                    smps_data["Date"].dt.strftime("%Y-%m-%d")
+                    date_series.dt.strftime("%Y-%m-%d")
                     + " "
-                    + smps_data["Start Time"].dt.strftime("%H:%M:%S"),
+                    + time_series.dt.strftime("%H:%M:%S"),
                     errors="coerce",
                 )
-            except Exception:
+            except (ValueError, TypeError, KeyError, AttributeError):
                 continue
 
             invalid_rows = smps_data["datetime"].isna().sum()
@@ -591,7 +622,7 @@ def process_smps_data(file_path, instrument="SMPS"):
                     )
                 )
                 smps_data["datetime"] = smps_data["mid_datetime"]
-            except Exception:
+            except (ValueError, TypeError, KeyError, AttributeError):
                 pass
 
             smps_data = smps_data.drop(
@@ -625,7 +656,7 @@ def process_smps_data(file_path, instrument="SMPS"):
                 smps_data["Total Concentration (µg/m³)"] = pd.to_numeric(
                     smps_data["Total Concentration (µg/m³)"], errors="coerce"
                 )
-            except Exception:
+            except (ValueError, TypeError, KeyError):
                 pass
 
             # Create a new DataFrame to avoid fragmentation warning
@@ -650,7 +681,7 @@ def process_smps_data(file_path, instrument="SMPS"):
                                 smps_data[col], errors="coerce"
                             )
                         new_data[bin_name] = pd.DataFrame(numeric_data).sum(axis=1)
-                    except Exception:
+                    except (ValueError, TypeError, KeyError):
                         new_data[bin_name] = pd.Series(np.nan, index=smps_data.index)
 
             # Get the burn_id for this date
@@ -658,10 +689,13 @@ def process_smps_data(file_path, instrument="SMPS"):
             if not burn_id_row.empty:
                 burn_id = burn_id_row["Burn ID"].iloc[0]
 
+                # Ensure datetime column is properly typed
+                datetime_col = pd.to_datetime(smps_data["datetime"], errors="coerce")
+
                 result_df = pd.DataFrame(
                     {
-                        "datetime": smps_data["datetime"],
-                        "Date": smps_data["datetime"].dt.date,
+                        "datetime": datetime_col,
+                        "Date": datetime_col.dt.date,
                         "burn_id": burn_id,
                         "Total Concentration (µg/m³)": smps_data[
                             "Total Concentration (µg/m³)"
@@ -697,7 +731,7 @@ def process_smps_data(file_path, instrument="SMPS"):
                     [combined_smps_data, result_df], ignore_index=True
                 )
 
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError, FileNotFoundError, OSError) as e:
             print(f"Error processing SMPS file for date {burn_date}: {str(e)}")
 
     # Final check of data quality
@@ -786,9 +820,17 @@ def get_pm25_equivalent_pollutant(instrument):
         return "PM2.5 (µg/m³)"  # Use PM2.5 for others
 
 
-def create_toc_figure(burn_to_plot=BURN_TO_PLOT):
-    """Create high-quality TOC figure for a single burn"""
-    print(f"Creating TOC figure for {burn_to_plot}...")
+def plot_burn_comparison(burn_to_plot=BURN_TO_PLOT, script_metadata=None):
+    """Plot PM2.5 equivalent data for all instruments for a single burn
+
+    Args:
+        burn_to_plot: Burn ID to plot (e.g., "burn9")
+        script_metadata: Optional metadata string to include in the figure
+
+    Returns:
+        Bokeh column layout with plot and metadata
+    """
+    print(f"Creating comparison plot for {burn_to_plot}...")
 
     # Get burn date
     burn_row = burn_log[burn_log["Burn ID"] == burn_to_plot]
@@ -800,16 +842,18 @@ def create_toc_figure(burn_to_plot=BURN_TO_PLOT):
     garage_closed_time_str = burn_row["garage closed"].iloc[0]
     garage_closed_time = create_naive_datetime(burn_date.date(), garage_closed_time_str)
 
-    # Set figure size and DPI for exact pixel dimensions
-    # 550px wide × 1050px tall at 100 DPI
-    fig_width_inches = 550 / 100
-    fig_height_inches = 1050 / 100
-    dpi = 100
-
-    # Create figure with transparent background
-    fig, ax = plt.subplots(figsize=(fig_width_inches, fig_height_inches), dpi=dpi)
-    fig.patch.set_alpha(0.0)
-    ax.patch.set_alpha(0.0)
+    # Create plot
+    p = figure(
+        x_axis_label="Time Since Garage Closed (hours)",
+        y_axis_label="PM Concentration (µg/m³)",
+        x_axis_type="linear",
+        y_axis_type="log",
+        width=800,
+        height=500,
+        x_range=Range1d(-1, 4),
+        y_range=Range1d(10**-1, 10**5),
+        # title=f'{burn_to_plot} PM2.5-equivalent comparison across instruments'
+    )
 
     # Define colors for instruments
     colors = [
@@ -889,10 +933,10 @@ def create_toc_figure(burn_to_plot=BURN_TO_PLOT):
                 burn_datetime - garage_closed_time
             ).dt.total_seconds() / 3600
 
-            # Filter data to time range (-1 to +3 hours)
+            # Filter data to time range (-1 to +4 hours)
             time_filtered_data = burn_data[
                 (burn_data["Time Since Garage Closed (hours)"] >= -1)
-                & (burn_data["Time Since Garage Closed (hours)"] <= 3)
+                & (burn_data["Time Since Garage Closed (hours)"] <= 4)
             ].copy()
 
             if time_filtered_data.empty or pollutant not in time_filtered_data.columns:
@@ -900,81 +944,206 @@ def create_toc_figure(burn_to_plot=BURN_TO_PLOT):
 
             # Determine line style based on location
             location = determine_instrument_location(instrument, burn_to_plot)
-            linestyle = "--" if location == "bedroom" else "-"
-
-            # Get display name for legend
-            display_name = config.get("display_name", instrument)
+            line_dash = "dashed" if location == "bedroom" else "solid"
 
             # Plot the data
-            ax.plot(
-                time_filtered_data["Time Since Garage Closed (hours)"],
-                time_filtered_data[pollutant],
-                label=display_name,
-                linewidth=2,
-                linestyle=linestyle,
+            source = ColumnDataSource(time_filtered_data)
+            p.line(
+                "Time Since Garage Closed (hours)",
+                pollutant,
+                source=source,
+                legend_label=f"{instrument}",  # ({location}) can be added if needed
+                line_width=2,
+                line_dash=line_dash,
                 color=colors[color_idx % len(colors)],
             )
 
             color_idx += 1
-            print(f"Plotted {instrument} ({location}) - {pollutant} as {display_name}")
+            print(f"Plotted {instrument} ({location}) - {pollutant}")
 
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError, IndexError) as e:
             print(f"Error plotting {instrument}: {str(e)}")
             continue
 
     # Add vertical line for garage closed (at time 0)
-    ax.axvline(x=0, color='black', linewidth=1, linestyle='-', label='Garage Closed')
+    p.line(
+        x=[0, 0],
+        y=[10**-2, 10**6],
+        line_color="black",
+        line_width=1,
+        line_dash="solid",
+        legend_label="Garage Closed",
+    )
 
     # Add vertical line for CR Box On
     cr_box_on_time_str = burn_row["CR Box on"].iloc[0]
     if pd.notna(cr_box_on_time_str):
         cr_box_on_time = create_naive_datetime(burn_date.date(), cr_box_on_time_str)
-        cr_box_on_time_since_garage_closed = (
-            cr_box_on_time - garage_closed_time
-        ).total_seconds() / 3600
-        ax.axvline(
-            x=cr_box_on_time_since_garage_closed,
-            color='black',
-            linewidth=1,
-            linestyle='--',
-            label='CR Box on'
-        )
-
-    # Set axis properties
-    ax.set_xlabel("Time Since Garage Closed (hours)", fontsize=10)
-    ax.set_ylabel("PM Concentration (µg/m³)", fontsize=10)
-    ax.set_yscale('log')
-    ax.set_xlim(-1, 3)
-    ax.set_ylim(10**-2, 10**5)
+        # Only proceed if both timestamps are valid
+        if pd.notna(cr_box_on_time) and pd.notna(garage_closed_time):
+            cr_box_on_time_since_garage_closed = (
+                cr_box_on_time - garage_closed_time
+            ).total_seconds() / 3600
+            p.line(
+                x=[cr_box_on_time_since_garage_closed, cr_box_on_time_since_garage_closed],
+                y=[10**-2, 10**6],
+                line_color="black",
+                line_width=1,
+                line_dash="dashed",
+                legend_label="CR Box on",
+            )
 
     # Customize legend
-    ax.legend(loc='upper right', fontsize=8, framealpha=0.8)
+    p.legend.click_policy = "hide"
+    p.legend.location = "top_right"
 
-    # Adjust layout to prevent label cutoff
-    plt.tight_layout()
+    # Create metadata div if provided
+    if script_metadata:
+        div_text = f"<small>{script_metadata}</small>"
+        text_div = Div(text=div_text, width=800)
+        layout = column(p, text_div)
+    else:
+        layout = p
 
-    # Save plot as PNG with transparent background
-    os.makedirs(str(get_common_file('output_figures')), exist_ok=True)
-    png_filename = f"./Paper_figures/{burn_to_plot}_TOC_figure.png"
-    plt.savefig(png_filename, format='png', dpi=dpi, transparent=True, bbox_inches='tight')
+    # Save plot
+    os.makedirs("./Paper_figures", exist_ok=True)
+    html_filename = f"./Paper_figures/{burn_to_plot}_PM25_comparison.html"
+    output_file(html_filename)
+    show(layout)
 
-    print(f"TOC figure saved to {png_filename}")
-    print(f"Figure dimensions: {fig_width_inches*dpi:.0f}px × {fig_height_inches*dpi:.0f}px")
+    print(f"Plot saved to {html_filename}")
 
-    plt.close()
+    return layout
+
+
+def find_peak_concentrations():
+    """Process all instruments and find peak concentrations for each burn and pollutant"""
+    print("Processing all instruments to find peak concentrations...")
+
+    # Initialize results dictionary
+    results = {}
+
+    # Process each instrument
+    for instrument, config in INSTRUMENT_CONFIG.items():
+        print(f"\nProcessing {instrument}...")
+
+        try:
+            # Get processing function and file path
+            process_func_name = config["process_function"]
+            file_path = config["file_path"]
+
+            # Call the appropriate processing function
+            if process_func_name == "process_aerotrak_data":
+                processed_data = process_aerotrak_data(file_path, instrument)
+            elif process_func_name == "process_dusttrak_data":
+                processed_data = process_dusttrak_data(file_path, instrument)
+            elif process_func_name == "process_miniams_data":
+                processed_data = process_miniams_data(file_path, instrument)
+            elif process_func_name == "process_purpleairk_data":
+                processed_data = process_purpleairk_data(file_path)
+            elif process_func_name == "process_quantaq_data":
+                processed_data = process_quantaq_data(file_path, instrument)
+            elif process_func_name == "process_smps_data":
+                processed_data = process_smps_data(file_path, instrument)
+            else:
+                print(f"Unknown processing function: {process_func_name}")
+                continue
+
+            if processed_data.empty:
+                print(f"No data processed for {instrument}")
+                continue
+
+            # Get process pollutants for this instrument
+            process_pollutants = config["process_pollutants"]
+
+            # Find peak concentrations for each burn and pollutant
+            unique_dates = processed_data["Date"].unique()
+
+            for burn_date in unique_dates:
+                # Get burn_id for this date
+                burn_row = burn_log[burn_log["Date"] == pd.to_datetime(burn_date)]
+                if burn_row.empty:
+                    continue
+
+                burn_id = burn_row["Burn ID"].iloc[0]
+
+                # Filter data for this burn
+                burn_data = processed_data[processed_data["Date"] == burn_date]
+
+                # Find peak concentration for each pollutant
+                for pollutant in process_pollutants:
+                    if pollutant in burn_data.columns:
+                        # Get maximum concentration, handling NaN values
+                        max_conc = burn_data[pollutant].max()
+
+                        # Store result with instrument-pollutant combination as column name
+                        column_name = f"{instrument}_{pollutant}"
+
+                        if burn_id not in results:
+                            results[burn_id] = {}
+
+                        results[burn_id][column_name] = max_conc
+
+                        if pd.notna(max_conc):
+                            print(f"  {burn_id} {pollutant}: {max_conc:.3f}")
+
+        except (ValueError, TypeError, KeyError, AttributeError, IndexError) as e:
+            print(f"Error processing {instrument}: {str(e)}")
+            continue
+
+    # Convert results to DataFrame
+    if results:
+        df_results = pd.DataFrame.from_dict(results, orient="index")
+        df_results.index.name = "Burn_ID"
+
+        # Sort by burn number
+        burn_numbers = [
+            int(burn_id.replace("burn", "")) for burn_id in df_results.index
+        ]
+        df_results = df_results.iloc[np.argsort(burn_numbers)]
+
+        # Save to Excel in burn_data directory
+        output_filename = "./burn_data/peak_concentrations_all_instruments.xlsx"
+        df_results.to_excel(output_filename)
+
+        print(f"\n*** Peak concentrations saved to {output_filename} ***")
+        print(
+            f"Results shape: {df_results.shape} (instrument-pollutant combinations × burns)"
+        )
+        print("\nFirst few rows:")
+        print(df_results.iloc[:5, :].to_string())
+
+        return df_results
+    else:
+        print("No results to save!")
+        return None
 
 
 def main():
-    """Main function to create the TOC figure"""
+    """Main function to process all instruments and create peak concentration matrix"""
     try:
-        # Create TOC figure for the specified burn
-        print(f"Creating TOC figure for {BURN_TO_PLOT}...")
-        create_toc_figure(BURN_TO_PLOT)
-        print("\nTOC figure created successfully!")
+        # Get script metadata
+        metadata = get_script_metadata()
 
-    except Exception as e:
+        # Find peak concentrations for all instruments
+        results_df = find_peak_concentrations()
+
+        if results_df is not None:
+            print("\nProcessing completed successfully!")
+            print(
+                f"Created matrix with {len(results_df)} rows "
+                f"(instrument-pollutant combinations) and "
+                f"{len(results_df.columns)} columns (burns)"
+            )
+        else:
+            print("No data was processed successfully")
+
+        # Create comparison plot for the specified burn
+        print(f"\nCreating comparison plot for {BURN_TO_PLOT}...")
+        plot_burn_comparison(BURN_TO_PLOT, script_metadata=metadata)
+
+    except (ValueError, TypeError, KeyError, AttributeError, FileNotFoundError, OSError) as e:
         print(f"Error in main function: {e}")
-        import traceback
         traceback.print_exc()
 
 

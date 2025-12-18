@@ -30,6 +30,7 @@ Output:
 
 import os
 import sys
+from pathlib import Path
 import pandas as pd
 import numpy as np
 from bokeh.io import output_file, save
@@ -40,11 +41,12 @@ from bokeh.models.formatters import NumeralTickFormatter
 from bokeh.layouts import column
 from scipy.stats import f_oneway, norm, ttest_ind
 
-# Import utils
-script_dir = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.dirname(script_dir)
-sys.path.append(parent_dir)
+# Add repository root to path for portable data access
+script_dir = Path(__file__).parent
+repo_root = script_dir.parent
+sys.path.insert(0, str(repo_root))
 
+from src.data_paths import get_data_root, get_common_file
 from scripts import get_script_metadata  # pylint: disable=import-error,wrong-import-position
 
 # ============================================================================
@@ -55,12 +57,11 @@ STATISTICAL_CONFIG = {
     "confidence_level": 0.95,  # Confidence level (1 - alpha)
 }
 
-# Define needed paths
-ABSOLUTE_PATH = (
-    "C:/Users/nml/OneDrive - NIST/Documents/NIST/WUI_smoke/burn_data/burn_calcs"
-)
-BASE_PATH = "C:/Users/nml/OneDrive - NIST/Documents/NIST/WUI_smoke/Paper_figures"
-STATS_OUTPUT_PATH = "C:/Users/nml/OneDrive - NIST/Documents/NIST/WUI_smoke/burn_data"
+# Define needed paths - using portable data paths
+data_root = get_data_root()
+ABSOLUTE_PATH = str(data_root / "burn_data" / "burn_calcs")
+BASE_PATH = str(get_common_file('output_figures'))
+STATS_OUTPUT_PATH = str(data_root / "burn_data")
 
 # Define the instruments
 instruments = [

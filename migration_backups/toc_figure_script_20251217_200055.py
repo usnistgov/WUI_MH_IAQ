@@ -29,32 +29,21 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
 
-import sys
-from pathlib import Path
-
-# Add repository root to path for portable data access
-script_dir = Path(__file__).parent
-repo_root = script_dir.parent
-sys.path.insert(0, str(repo_root))
-
-from src.data_paths import get_data_root, get_instrument_path, get_common_file
-
-
 # Set the absolute path for the dataset
-data_root = get_data_root()  # Portable path - auto-configured
-os.chdir(str(data_root))
+absolute_path = "C:/Users/nml/OneDrive - NIST/Documents/NIST/WUI_smoke/"
+os.chdir(absolute_path)
 
 # Variable to set which burn to plot
 BURN_TO_PLOT = "burn9"
 
 # Load burn log once
-burn_log_path = str(get_common_file('burn_log'))
+burn_log_path = "./burn_log.xlsx"
 burn_log = pd.read_excel(burn_log_path, sheet_name="Sheet2")
 
 # Define instrument configurations
 INSTRUMENT_CONFIG = {
     "AeroTrakB": {
-        "file_path": str(get_instrument_path('aerotrak_bedroom') / 'all_data.xlsx'),
+        "file_path": "./burn_data/aerotraks/bedroom2/all_data.xlsx",
         "process_function": "process_aerotrak_data",
         "time_shift": 2.16,
         "process_pollutants": [
@@ -73,7 +62,7 @@ INSTRUMENT_CONFIG = {
         "display_name": "OPC1",
     },
     "AeroTrakK": {
-        "file_path": str(get_instrument_path('aerotrak_kitchen') / 'all_data.xlsx'),
+        "file_path": "./burn_data/aerotraks/kitchen/all_data.xlsx",
         "process_function": "process_aerotrak_data",
         "time_shift": 5,
         "process_pollutants": [
@@ -132,7 +121,7 @@ INSTRUMENT_CONFIG = {
         "display_name": "Nef1",
     },
     "QuantAQB": {
-        "file_path": str(get_instrument_path('quantaq_bedroom') / 'MOD-PM-00194-b0fc215029fa4852b926bc50b28fda5a.csv'),
+        "file_path": "./burn_data/quantaq/MOD-PM-00194-b0fc215029fa4852b926bc50b28fda5a.csv",
         "process_function": "process_quantaq_data",
         "time_shift": -2.97,
         "process_pollutants": ["PM1 (µg/m³)", "PM2.5 (µg/m³)", "PM10 (µg/m³)"],
@@ -144,7 +133,7 @@ INSTRUMENT_CONFIG = {
         "display_name": "Nef+OPC2",
     },
     "QuantAQK": {
-        "file_path": str(get_instrument_path('quantaq_kitchen') / 'MOD-PM-00197-a6dd467a147a4d95a7b98a8a10ab4ea3.csv'),
+        "file_path": "./burn_data/quantaq/MOD-PM-00197-a6dd467a147a4d95a7b98a8a10ab4ea3.csv",
         "process_function": "process_quantaq_data",
         "time_shift": 0,
         "process_pollutants": ["PM1 (µg/m³)", "PM2.5 (µg/m³)", "PM10 (µg/m³)"],
@@ -954,7 +943,7 @@ def create_toc_figure(burn_to_plot=BURN_TO_PLOT):
     plt.tight_layout()
 
     # Save plot as PNG with transparent background
-    os.makedirs(str(get_common_file('output_figures')), exist_ok=True)
+    os.makedirs("./Paper_figures", exist_ok=True)
     png_filename = f"./Paper_figures/{burn_to_plot}_TOC_figure.png"
     plt.savefig(png_filename, format='png', dpi=dpi, transparent=True, bbox_inches='tight')
 
