@@ -196,6 +196,7 @@ def apply_time_shift(df, instrument, burn_id, burn_date):
 
 # Helper function to filter data by burn dates
 def filter_by_burn_dates(data, burn_range, datetime_column):
+    """Filter data by burn dates from burn log"""
     burn_ids = [f"burn{i}" for i in burn_range]
     burn_dates = burn_log[burn_log["Burn ID"].isin(burn_ids)]["Date"]
     burn_dates = pd.to_datetime(burn_dates)
