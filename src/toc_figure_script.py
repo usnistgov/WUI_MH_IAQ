@@ -48,6 +48,22 @@ os.chdir(str(data_root))
 # Variable to set which burn to plot
 BURN_TO_PLOT = "burn9"
 
+# Variable to set which instruments to include in the plot
+# Options: "AeroTrakB", "AeroTrakK", "DustTrak", "MiniAMS", "PurpleAirK", "QuantAQB", "QuantAQK", "SMPS"
+# Set to None to include all instruments, or specify a list/set of instrument names
+INSTRUMENTS_TO_PLOT = {"AeroTrakK"}  # Use None for all, or set like: {"AeroTrakB", "DustTrak", "SMPS"}
+
+# Variable to set text sizes for the plot
+# Adjust these values to control the appearance of text in the figure
+TEXT_SIZES = {
+    "xlabel": 16,         # X-axis label font size
+    "ylabel": 16,         # Y-axis label font size
+    "legend": 14,         # Legend font size
+    "title": 16,         # Title font size (if added)
+    "xticks": 16,         # X-axis tick label font size
+    "yticks": 16,         # Y-axis tick label font size
+}
+
 # Load burn log once
 BURN_LOG_PATH = str(get_common_file('burn_log'))
 burn_log = pd.read_excel(BURN_LOG_PATH, sheet_name="Sheet2")
@@ -802,9 +818,25 @@ def get_pm25_equivalent_pollutant(instrument):
         return "PM2.5 (µg/m³)"  # Use PM2.5 for others
 
 
-def create_toc_figure(burn_to_plot=BURN_TO_PLOT):
-    """Create high-quality TOC figure for a single burn"""
+def create_toc_figure(burn_to_plot=BURN_TO_PLOT, instruments_to_plot=INSTRUMENTS_TO_PLOT, text_sizes=None):
+    """Create high-quality TOC figure for a single burn
+    
+    Parameters:
+    -----------
+    burn_to_plot : str
+        The burn ID to plot (e.g., "burn9")
+    instruments_to_plot : set, list, or None
+        Instruments to include in the plot. If None, includes all except MiniAMS.
+        Examples: {"AeroTrakB", "DustTrak", "SMPS"} or None for all available
+    text_sizes : dict or None
+        Dictionary with text size settings. If None, uses global TEXT_SIZES.
+        Keys: 'xlabel', 'ylabel', 'legend', 'title'
+    """
+    if text_sizes is None:
+        text_sizes = TEXT_SIZES
+    
     print(f"Creating TOC figure for {burn_to_plot}...")
+    print(f"Instruments to plot: {instruments_to_plot if instruments_to_plot else 'All available (except MiniAMS)'}")
 
     # Get burn date
     burn_row = burn_log[burn_log["Burn ID"] == burn_to_plot]
@@ -817,9 +849,9 @@ def create_toc_figure(burn_to_plot=BURN_TO_PLOT):
     garage_closed_time = create_naive_datetime(burn_date.date(), garage_closed_time_str)
 
     # Set figure size and DPI for exact pixel dimensions
-    # 550px wide × 1050px tall at 100 DPI
-    fig_width_inches = 550 / 100
-    fig_height_inches = 1050 / 100
+    # 555px wide × 1055px tall at 100 DPI
+    fig_width_inches = 555 / 100
+    fig_height_inches = 1055 / 100
     dpi = 100
 
     # Create figure with transparent background
@@ -842,9 +874,15 @@ def create_toc_figure(burn_to_plot=BURN_TO_PLOT):
 
     # Process each instrument
     for instrument, config in INSTRUMENT_CONFIG.items():
-        # Skip MiniAMS for the plot
-        if instrument == "MiniAMS":
-            continue
+        # Skip instruments not in the selection
+        if instruments_to_plot is None:
+            # Default behavior: skip MiniAMS if not explicitly selected
+            if instrument == "MiniAMS":
+                continue
+        else:
+            # Only plot instruments in the specified set/list
+            if instrument not in instruments_to_plot:
+                continue
 
         try:
             # Check if this burn is in the instrument's range
@@ -958,14 +996,18 @@ def create_toc_figure(burn_to_plot=BURN_TO_PLOT):
                 )
 
     # Set axis properties
-    ax.set_xlabel("Time Since Garage Closed (hours)", fontsize=10)
-    ax.set_ylabel("PM Concentration (µg/m³)", fontsize=10)
+    ax.set_xlabel("Time Since Garage Closed (hours)", fontsize=text_sizes["xlabel"])
+    ax.set_ylabel("PM Concentration (µg/m³)", fontsize=text_sizes["ylabel"])
     ax.set_yscale('log')
     ax.set_xlim(-1, 3)
     ax.set_ylim(10**-2, 10**5)
 
+    # Set tick label font sizes
+    ax.tick_params(axis='x', labelsize=text_sizes.get("xticks", 12))
+    ax.tick_params(axis='y', labelsize=text_sizes.get("yticks", 12))
+
     # Customize legend
-    ax.legend(loc='upper right', fontsize=8, framealpha=0.8)
+    ax.legend(loc='upper right', fontsize=text_sizes["legend"], framealpha=0.8)
 
     # Adjust layout to prevent label cutoff
     plt.tight_layout()
@@ -986,7 +1028,7 @@ def main():
     try:
         # Create TOC figure for the specified burn
         print(f"Creating TOC figure for {BURN_TO_PLOT}...")
-        create_toc_figure(BURN_TO_PLOT)
+        create_toc_figure(BURN_TO_PLOT, INSTRUMENTS_TO_PLOT, TEXT_SIZES)
         print("\nTOC figure created successfully!")
 
     except Exception as e:  # pylint: disable=broad-exception-caught
