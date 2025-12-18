@@ -19,9 +19,9 @@
 - [x] Fixed Windows Unicode encoding issues
 
 ### Scripts Updated (3 most recent)
-- [x] `wui_temp-rh_comparison.py` - Now uses portable paths
-- [x] `wui_spatial_variation_analysis.py` - Now uses portable paths
-- [x] `wui_spatial_variation_analysis_plot.py` - Now uses portable paths
+- [x] `temp-rh_comparison.py` - Now uses portable paths
+- [x] `spatial_variation_analysis.py` - Now uses portable paths
+- [x] `spatial_variation_analysis_plot.py` - Now uses portable paths
 
 ### Testing
 - [x] Verified all 9 instruments are accessible
@@ -73,36 +73,36 @@ Config File: data_config.json ✓
 The following scripts in `src/` still use hardcoded paths:
 
 **CADR Analysis Scripts:**
-- `wui_clean_air_delivery_rates_update.py`
-- `wui_clean_air_delivery_rates_barchart.py`
-- `wui_clean_air_delivery_rates_pmsizes_SIUniformaty.py`
-- `wui_clean_air_delivery_rates_vs_total_surface_area.py`
+- `clean_air_delivery_rates_update.py`
+- `clean_air_delivery_rates_barchart.py`
+- `clean_air_delivery_rates_pmsizes_SIUniformaty.py`
+- `clean_air_delivery_rates_vs_total_surface_area.py`
 - `cadr_comparison_statistical_analysis.py`
 
 **Compartmentalization Scripts:**
-- `wui_compartmentalization_strategy_comparison.py`
-- `wui_decay_rate_barchart.py`
+- `compartmentalization_strategy_comparison.py`
+- `decay_rate_barchart.py`
 
 **Concentration Scripts:**
-- `wui_conc_increase_to_decrease.py`
+- `conc_increase_to_decrease.py`
 - `peak_concentration_script.py`
 
 **Instrument Comparison Scripts:**
-- `wui_aerotrak_vs_smps.py`
-- `wui_dusttrak-rh_comparison.py`
-- `wui_purpleair_comparison.py`
-- `wui_quantaq_pm2_5_burn8.py`
-- `wui_general_particle_count_comparison.py`
+- `aerotrak_vs_smps.py`
+- `dusttrak-rh_comparison.py`
+- `purpleair_comparison.py`
+- `quantaq_pm2_5_burn8.py`
+- `general_particle_count_comparison.py`
 
 **SMPS Scripts:**
-- `wui_smps_filterperformance.py`
-- `wui_smps_finepm_comparison.py`
-- `wui_smps_heatmap.py`
-- `wui_smps_mass_vs_conc.py`
+- `smps_filterperformance.py`
+- `smps_finepm_comparison.py`
+- `smps_heatmap.py`
+- `smps_mass_vs_conc.py`
 
 **Utility Scripts:**
-- `wui_remove_aerotrak_dup_data.py`
-- `wui_mh_relay_control_log.py`
+- `remove_aerotrak_dup_data.py`
+- `mh_relay_control_log.py`
 - `toc_figure_script.py`
 
 **Total Remaining:** ~23 scripts
@@ -117,7 +117,7 @@ Simply run them as normal - they'll automatically find your data:
 
 ```bash
 cd C:\Users\Nathan\Documents\GitHub\python_coding\NIST_wui_mh_iaq
-python src/wui_spatial_variation_analysis.py
+python src/spatial_variation_analysis.py
 ```
 
 ### For Scripts Not Yet Updated

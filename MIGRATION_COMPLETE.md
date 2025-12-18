@@ -19,6 +19,8 @@
 
 **Verification:** ✅ COMPLETE - Zero hardcoded paths remaining in active code
 
+**Cleanup:** ✅ Removed "wui_" prefix from 22 script filenames (old project artifact)
+
 ### ✅ All Categories Complete
 
 | Category | Scripts | Status |
@@ -55,36 +57,36 @@
 ### Scripts Migrated (19 TOTAL)
 
 **Manually Updated (3):**
-1. `src/wui_temp-rh_comparison.py` ✅
-2. `src/wui_spatial_variation_analysis.py` ✅
-3. `src/wui_spatial_variation_analysis_plot.py` ✅
+1. `src/temp-rh_comparison.py` ✅
+2. `src/spatial_variation_analysis.py` ✅
+3. `src/spatial_variation_analysis_plot.py` ✅
 
 **Auto-Migrated (16):**
 1. `src/peak_concentration_script.py` ✅
 2. `src/toc_figure_script.py` ✅
-3. `src/wui_aerotrak_vs_smps.py` ✅
-4. `src/wui_aham_ac1_comparison.py` ✅
-5. `src/wui_clean_air_delivery_rates_pmsizes_SIUniformaty.py` ✅
-6. `src/wui_clean_air_delivery_rates_update.py` ✅
-7. `src/wui_compartmentalization_strategy_comparison.py` ✅
-8. `src/wui_conc_increase_to_decrease.py` ✅
-9. `src/wui_dusttrak-rh_comparison.py` ✅
-10. `src/wui_general_particle_count_comparison.py` ✅
-11. `src/wui_purpleair_comparison.py` ✅
-12. `src/wui_quantaq_pm2.5_burn8.py` ✅
-13. `src/wui_smps_filterperformance.py` ✅
-14. `src/wui_smps_finepm_comparison.py` ✅
-15. `src/wui_smps_heatmap.py` ✅
-16. `src/wui_smps_mass_vs_conc.py` ✅
+3. `src/aerotrak_vs_smps.py` ✅
+4. `src/aham_ac1_comparison.py` ✅
+5. `src/clean_air_delivery_rates_pmsizes_SIUniformaty.py` ✅
+6. `src/clean_air_delivery_rates_update.py` ✅
+7. `src/compartmentalization_strategy_comparison.py` ✅
+8. `src/conc_increase_to_decrease.py` ✅
+9. `src/dusttrak-rh_comparison.py` ✅
+10. `src/general_particle_count_comparison.py` ✅
+11. `src/purpleair_comparison.py` ✅
+12. `src/quantaq_pm2.5_burn8.py` ✅
+13. `src/smps_filterperformance.py` ✅
+14. `src/smps_finepm_comparison.py` ✅
+15. `src/smps_heatmap.py` ✅
+16. `src/smps_mass_vs_conc.py` ✅
 
 **No Changes Needed (7):**
 1. `src/cadr_comparison_statistical_analysis.py` - No hardcoded paths
 2. `src/process_aerotrak_data.py` - Utility function only
-3. `src/wui_clean_air_delivery_rates_barchart.py` - No hardcoded paths
-4. `src/wui_clean_air_delivery_rates_vs_total_surface_area.py` - No hardcoded paths
-5. `src/wui_decay_rate_barchart.py` - No hardcoded paths
-6. `src/wui_mh_relay_control_log.py` - No hardcoded paths
-7. `src/wui_remove_aerotrak_dup_data.py` - No hardcoded paths
+3. `src/clean_air_delivery_rates_barchart.py` - No hardcoded paths
+4. `src/clean_air_delivery_rates_vs_total_surface_area.py` - No hardcoded paths
+5. `src/decay_rate_barchart.py` - No hardcoded paths
+6. `src/mh_relay_control_log.py` - No hardcoded paths
+7. `src/remove_aerotrak_dup_data.py` - No hardcoded paths
 
 ---
 
@@ -209,7 +211,7 @@ burn_log = str(get_common_file('burn_log'))
 
 3. **Script Execution** ✅
    ```bash
-   python src/wui_spatial_variation_analysis_plot.py
+   python src/spatial_variation_analysis_plot.py
    # Result: Successfully loaded data and generated plots
    ```
 
@@ -245,7 +247,7 @@ git status | grep data_config.json
 # Should see: nothing (file is ignored)
 
 # Commit
-git commit -m "Migrate all scripts to portable data path system
+git commit -m "Migrate all scripts to portable data path system and clean up filenames
 
 - Created portable path resolution system (src/data_paths.py)
 - Updated 24 analysis scripts to use get_instrument_path() and get_common_file()
@@ -253,8 +255,11 @@ git commit -m "Migrate all scripts to portable data path system
 - Created config template for cross-machine compatibility
 - Updated .gitignore to protect local configurations
 - Zero hardcoded paths remaining in active code
+- Removed 'wui_' prefix from 22 script filenames (old project artifact)
 
-All scripts now work on both laptop and desktop without hardcoded paths."
+All scripts now work on both laptop and desktop without hardcoded paths.
+
+Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
 ```
 
 ---
@@ -265,23 +270,23 @@ All scripts now work on both laptop and desktop without hardcoded paths."
 
 After automated migration, user review identified 5 scripts that were marked "no changes needed" but actually contained hardcoded paths missed by regex patterns:
 
-1. **wui_clean_air_delivery_rates_barchart.py**
+1. **clean_air_delivery_rates_barchart.py**
    - Issue: Multiline string definition
    - Fixed: Added portable path imports, updated ABSOLUTE_PATH and OUTPUT_PATH
 
-2. **wui_clean_air_delivery_rates_vs_total_surface_area.py**
+2. **clean_air_delivery_rates_vs_total_surface_area.py**
    - Issue: Raw string (r"...") and multiple path instances
    - Fixed: Updated 3 hardcoded path locations with portable alternatives
 
-3. **wui_decay_rate_barchart.py**
+3. **decay_rate_barchart.py**
    - Issue: Multiline string definitions for paths
    - Fixed: Updated ABSOLUTE_PATH, BASE_PATH, and STATS_OUTPUT_PATH
 
-4. **wui_mh_relay_control_log.py**
+4. **mh_relay_control_log.py**
    - Issue: Raw string definition
    - Fixed: Added portable imports, updated input_directory path
 
-5. **wui_remove_aerotrak_dup_data.py**
+5. **remove_aerotrak_dup_data.py**
    - Issue: Raw string definition
    - Fixed: Added portable imports, updated base_directory path
 
@@ -289,16 +294,16 @@ After automated migration, user review identified 5 scripts that were marked "no
 
 Three additional scripts had leftover system detection code that was cleaned up:
 
-1. **wui_compartmentalization_strategy_comparison.py**
+1. **compartmentalization_strategy_comparison.py**
    - Removed old system path detection loop
    - Replaced with comment referencing portable system
 
-2. **wui_dusttrak-rh_comparison.py**
+2. **dusttrak-rh_comparison.py**
    - Removed old system1_path/system2_path detection
    - Added missing `data_root = get_data_root()` line
    - Replaced with comment referencing portable system
 
-3. **wui_purpleair_comparison.py**
+3. **purpleair_comparison.py**
    - Updated Bokeh `output_file()` to use `get_common_file('output_figures')`
 
 ### Final Verification ✅

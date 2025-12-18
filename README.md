@@ -39,42 +39,42 @@ The study conducted multiple controlled burn experiments (Burn 1-10) in a manufa
 ## Repository Structure
 
 ### Clean Air Delivery Rate (CADR) Analysis
-- **`wui_clean_air_delivery_rates_update.py`** - Primary CADR calculation script with exponential decay fitting for all instruments
-- **`wui_clean_air_delivery_rates_barchart.py`** - Visualization of CADR values across different burn experiments
-- **`wui_clean_air_delivery_rates_pmsizes_SIUniformaty.py`** - CADR analysis with SI unit formatting and uniformity checks
-- **`wui_clean_air_delivery_rates_vs_total_surface_area.py`** - Correlation analysis between CADR and particle surface area
+- **`clean_air_delivery_rates_update.py`** - Primary CADR calculation script with exponential decay fitting for all instruments
+- **`clean_air_delivery_rates_barchart.py`** - Visualization of CADR values across different burn experiments
+- **`clean_air_delivery_rates_pmsizes_SIUniformaty.py`** - CADR analysis with SI unit formatting and uniformity checks
+- **`clean_air_delivery_rates_vs_total_surface_area.py`** - Correlation analysis between CADR and particle surface area
 - **`cadr_comparison_statistical_analysis.py`** - Statistical comparison of CADR values across experimental conditions
 
 ### Compartmentalization and Mitigation Strategy Analysis
-- **`wui_compartmentalization_strategy_comparison.py`** - Comprehensive comparison of compartmentalization approaches (open house vs. closed bedroom vs. closed bedroom with filtration)
-- **`wui_decay_rate_barchart.py`** - Visualization and comparison of decay rates for different mitigation strategies
+- **`compartmentalization_strategy_comparison.py`** - Comprehensive comparison of compartmentalization approaches (open house vs. closed bedroom vs. closed bedroom with filtration)
+- **`decay_rate_barchart.py`** - Visualization and comparison of decay rates for different mitigation strategies
 
 ### Concentration Dynamics
-- **`wui_conc_increase_to_decrease.py`** - Analysis of concentration increase phase versus decay phase
+- **`conc_increase_to_decrease.py`** - Analysis of concentration increase phase versus decay phase
 - **`peak_concentration_script.py`** - Identification and characterization of peak PM concentrations during burns
 
 ### Spatial Variation Analysis
-- **`wui_spatial_variation_analysis.py`** - Quantification of spatial variability in PM concentrations between rooms (Peak Ratio Index, Average Ratio, RSD calculations)
+- **`spatial_variation_analysis.py`** - Quantification of spatial variability in PM concentrations between rooms (Peak Ratio Index, Average Ratio, RSD calculations)
 
 ### Instrument Comparison and Validation
-- **`wui_aerotrak_vs_smps.py`** - Comparison between AeroTrak optical particle counter and SMPS measurements
-- **`wui_dusttrak-rh_comparison.py`** - Analysis of DustTrak performance and relative humidity effects
-- **`wui_purpleair_comparison.py`** - Validation of low-cost PurpleAir sensors against reference instruments
-- **`wui_quantaq_pm2_5_burn8.py`** - Detailed QuantAQ sensor analysis for specific burn experiment
-- **`wui_general_particle_count_comparison.py`** - Cross-instrument particle count comparison
+- **`aerotrak_vs_smps.py`** - Comparison between AeroTrak optical particle counter and SMPS measurements
+- **`dusttrak-rh_comparison.py`** - Analysis of DustTrak performance and relative humidity effects
+- **`purpleair_comparison.py`** - Validation of low-cost PurpleAir sensors against reference instruments
+- **`quantaq_pm2_5_burn8.py`** - Detailed QuantAQ sensor analysis for specific burn experiment
+- **`general_particle_count_comparison.py`** - Cross-instrument particle count comparison
 
 ### SMPS (Scanning Mobility Particle Sizer) Analysis
-- **`wui_smps_filterperformance.py`** - Filter performance evaluation using ultrafine particle measurements
-- **`wui_smps_finepm_comparison.py`** - Comparison of fine PM behavior across instruments
-- **`wui_smps_heatmap.py`** - Heatmap visualization of particle size distribution evolution
-- **`wui_smps_mass_vs_conc.py`** - Mass concentration versus number concentration analysis
+- **`smps_filterperformance.py`** - Filter performance evaluation using ultrafine particle measurements
+- **`smps_finepm_comparison.py`** - Comparison of fine PM behavior across instruments
+- **`smps_heatmap.py`** - Heatmap visualization of particle size distribution evolution
+- **`smps_mass_vs_conc.py`** - Mass concentration versus number concentration analysis
 
 ### Environmental Parameters
-- **`wui_temp-rh_comparison.py`** - Temperature and relative humidity monitoring and correlation with PM measurements
+- **`temp-rh_comparison.py`** - Temperature and relative humidity monitoring and correlation with PM measurements
 
 ### Data Processing Utilities
-- **`wui_remove_aerotrak_dup_data.py`** - Data cleaning script for removing duplicate AeroTrak timestamps
-- **`wui_mh_relay_control_log.py`** - Processing of relay control system logs for HVAC and filtration operation
+- **`remove_aerotrak_dup_data.py`** - Data cleaning script for removing duplicate AeroTrak timestamps
+- **`mh_relay_control_log.py`** - Processing of relay control system logs for HVAC and filtration operation
 
 ## Dependencies
 
@@ -120,7 +120,7 @@ WUI_smoke/
 
 3. **Run Analysis Scripts**: Scripts can be run interactively in Jupyter/VS Code or as standalone Python scripts
 ```bash
-python wui_clean_air_delivery_rates_update.py
+python clean_air_delivery_rates_update.py
 ```
 
 4. **Output**: Most scripts generate interactive Bokeh HTML plots saved to `./Paper_figures/` directory
