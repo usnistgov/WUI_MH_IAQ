@@ -38,6 +38,8 @@ The study conducted multiple controlled burn experiments (Burn 1-10) in a manufa
 
 ## Repository Structure
 
+All analysis scripts are located in the `src/` directory and organized by analysis type:
+
 ### Clean Air Delivery Rate (CADR) Analysis
 - **`clean_air_delivery_rates_update.py`** - Primary CADR calculation script with exponential decay fitting for all instruments
 - **`clean_air_delivery_rates_barchart.py`** - Visualization of CADR values across different burn experiments
@@ -55,6 +57,7 @@ The study conducted multiple controlled burn experiments (Burn 1-10) in a manufa
 
 ### Spatial Variation Analysis
 - **`spatial_variation_analysis.py`** - Quantification of spatial variability in PM concentrations between rooms (Peak Ratio Index, Average Ratio, RSD calculations)
+- **`spatial_variation_analysis_plot.py`** - Interactive Bokeh visualizations of spatial variation metrics comparing bedroom vs morning room under different CR Box configurations
 
 ### Instrument Comparison and Validation
 - **`aerotrak_vs_smps.py`** - Comparison between AeroTrak optical particle counter and SMPS measurements
@@ -62,6 +65,7 @@ The study conducted multiple controlled burn experiments (Burn 1-10) in a manufa
 - **`purpleair_comparison.py`** - Validation of low-cost PurpleAir sensors against reference instruments
 - **`quantaq_pm2_5_burn8.py`** - Detailed QuantAQ sensor analysis for specific burn experiment
 - **`general_particle_count_comparison.py`** - Cross-instrument particle count comparison
+- **`aham_ac1_comparison.py`** - Comparison of AHAM AC-1 test environment smoke concentration standards with actual WUI fire measurements
 
 ### SMPS (Scanning Mobility Particle Sizer) Analysis
 - **`smps_filterperformance.py`** - Filter performance evaluation using ultrafine particle measurements
@@ -75,6 +79,10 @@ The study conducted multiple controlled burn experiments (Burn 1-10) in a manufa
 ### Data Processing Utilities
 - **`remove_aerotrak_dup_data.py`** - Data cleaning script for removing duplicate AeroTrak timestamps
 - **`mh_relay_control_log.py`** - Processing of relay control system logs for HVAC and filtration operation
+- **`process_aerotrak_data.py`** - Core processing module for TSI AeroTrak particle counter data files (calculates mass and number concentrations, PM metrics)
+
+### Publication Figures
+- **`toc_figure_script.py`** - Generates single burn PM2.5 concentration figure for journal Table of Contents graphic (WUI implications paper)
 
 ## Dependencies
 
@@ -89,41 +97,118 @@ scipy >= 1.7.0
 
 # Visualization
 bokeh >= 2.4.0
+matplotlib >= 3.3.0
 
-# Date/time handling
+# Excel file support
+openpyxl >= 3.0.0
+
+# Built-in packages (no installation required)
 datetime
+pathlib
+json
+os
+sys
+typing
+```
+
+### Installation
+```bash
+pip install pandas numpy scipy bokeh matplotlib openpyxl
+```
+
+## Getting Started
+
+### Initial Setup
+
+The repository uses a configuration-based system to locate data files. This allows scripts to run on different machines without code modifications.
+
+1. **Install dependencies**
+   ```bash
+   pip install pandas numpy scipy bokeh matplotlib openpyxl
+   ```
+
+2. **Configure data paths**
+   - Copy the configuration template:
+     ```bash
+     cp data_config.template.json data_config.json
+     ```
+   - Edit `data_config.json` with your local data paths:
+     ```json
+     {
+       "machine_name": "YourMachineName",
+       "data_root": "C:/path/to/your/WUI_smoke",
+       "instruments": {
+         "aerotrak_bedroom": {
+           "path": "C:/path/to/your/WUI_smoke/burn_data/aerotraks/bedroom2"
+         },
+         ...
+       }
+     }
+     ```
+   - See `data_config.template.json` for the complete structure with all instruments
+
+3. **Verify configuration**
+   ```bash
+   python -c "from src.data_paths import resolver; resolver.list_instruments()"
+   ```
+   This will display all configured instruments and verify that data files are accessible.
+
+**Note:** The `data_config.json` file is not tracked by git (it's in `.gitignore`) to keep your local file paths private. Each user maintains their own configuration file.
+
+### Data Structure
+
+Ensure your data files are organized as follows:
+```
+WUI_smoke/
+├── burn_log.xlsx                                    # Master burn experiment log
+├── burn_data/
+│   ├── aerotraks/
+│   │   ├── bedroom2/                                # AeroTrak bedroom location
+│   │   │   └── all_data.xlsx
+│   │   └── kitchen/                                 # AeroTrak kitchen location
+│   │       └── all_data.xlsx
+│   ├── quantaq/
+│   │   ├── MOD-PM-00194-*.csv                      # QuantAQ bedroom
+│   │   └── MOD-PM-00197-*.csv                      # QuantAQ kitchen
+│   ├── dusttrak/
+│   │   └── *.xlsx
+│   ├── smps/
+│   │   └── *.txt
+│   ├── purpleair/
+│   │   └── *.csv
+│   ├── miniams/
+│   │   └── *.csv
+│   ├── vaisala_th/                                  # Temperature/RH sensors
+│   │   └── *.xlsx
+│   └── relaycontrol/                                # HVAC relay logs
+│       └── *.txt
+├── burn_dates_decay_aerotraks_bedroom.xlsx
+├── burn_dates_decay_aerotraks_kitchen.xlsx
+├── burn_dates_decay_smps.xlsx
+├── peak_concentrations_all_instruments.xlsx
+├── spatial_variation_analysis.xlsx
+└── Paper_figures/                                   # Output directory for plots
 ```
 
 ## Usage
 
-### General Workflow
+### Running Analysis Scripts
 
-1. **Set Working Directory**: Update the `absolute_path` variable in each script to point to your data directory:
-```python
-absolute_path = 'C:/path/to/your/WUI_smoke/'
-```
+All scripts are located in the `src/` directory. Scripts can be run from the command line or interactively in Jupyter/VS Code:
 
-2. **Data Structure Example**: Ensure your data files are organized as follows:
-```
-WUI_smoke/
-├── burn_log.xlsx                    # Master burn experiment log
-├── burn_data/
-│   ├── aerotraks/
-│   ├── quantaq/
-│   ├── dusttrak/
-│   ├── smps/
-│   └── purpleair/
-├── burn_dates_decay_aerotraks_bedroom.xlsx
-├── burn_dates_decay_aerotraks_kitchen.xlsx
-└── burn_dates_decay_smps.xlsx
-```
-
-3. **Run Analysis Scripts**: Scripts can be run interactively in Jupyter/VS Code or as standalone Python scripts
 ```bash
-python clean_air_delivery_rates_update.py
+# Example: Run CADR analysis
+cd NIST_wui_mh_iaq
+python src/clean_air_delivery_rates_update.py
+
+# Example: Run spatial variation analysis
+python src/spatial_variation_analysis.py
+python src/spatial_variation_analysis_plot.py
 ```
 
-4. **Output**: Most scripts generate interactive Bokeh HTML plots saved to `./Paper_figures/` directory
+### Output
+
+Most scripts generate interactive Bokeh HTML plots that are saved to your configured output directory (typically `Paper_figures/`). These HTML files can be opened in any web browser for interactive data exploration.
 
 ### Example: CADR Analysis
 
@@ -227,5 +312,5 @@ This research was conducted at the National Institute of Standards and Technolog
 
 ---
 
-**Last Updated:** November 2025  
+**Last Updated:** December 2025
 **Repository Maintainer:** Nathan Lima (NIST)
