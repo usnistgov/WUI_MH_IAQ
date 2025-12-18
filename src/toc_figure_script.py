@@ -36,7 +36,9 @@ script_dir = Path(__file__).parent
 repo_root = script_dir.parent
 sys.path.insert(0, str(repo_root))
 
+# pylint: disable=wrong-import-position
 from src.data_paths import get_data_root, get_instrument_path, get_common_file
+# pylint: enable=wrong-import-position
 
 
 # Set the absolute path for the dataset
@@ -131,7 +133,10 @@ INSTRUMENT_CONFIG = {
         "display_name": "Nef1",
     },
     "QuantAQB": {
-        "file_path": str(get_instrument_path('quantaq_bedroom') / 'MOD-PM-00194-b0fc215029fa4852b926bc50b28fda5a.csv'),
+        "file_path": str(
+            get_instrument_path('quantaq_bedroom')
+            / 'MOD-PM-00194-b0fc215029fa4852b926bc50b28fda5a.csv'
+        ),
         "process_function": "process_quantaq_data",
         "time_shift": -2.97,
         "process_pollutants": ["PM1 (µg/m³)", "PM2.5 (µg/m³)", "PM10 (µg/m³)"],
@@ -143,7 +148,10 @@ INSTRUMENT_CONFIG = {
         "display_name": "Nef+OPC2B",
     },
     "QuantAQK": {
-        "file_path": str(get_instrument_path('quantaq_kitchen') / 'MOD-PM-00197-a6dd467a147a4d95a7b98a8a10ab4ea3.csv'),
+        "file_path": str(
+            get_instrument_path('quantaq_kitchen')
+            / 'MOD-PM-00197-a6dd467a147a4d95a7b98a8a10ab4ea3.csv'
+        ),
         "process_function": "process_quantaq_data",
         "time_shift": 0,
         "process_pollutants": ["PM1 (µg/m³)", "PM2.5 (µg/m³)", "PM10 (µg/m³)"],
@@ -176,7 +184,7 @@ def create_naive_datetime(date_str, time_str):
 
 
 # Modified apply_time_shift function
-def apply_time_shift(df, instrument, burn_id, burn_date):
+def apply_time_shift(df, instrument, burn_date):
     """Apply time shift based on instrument configuration"""
     time_shift = INSTRUMENT_CONFIG[instrument].get("time_shift", 0)
     datetime_column = INSTRUMENT_CONFIG[instrument].get(
@@ -228,6 +236,7 @@ def process_aerotrak_data(file_path, instrument="AeroTrakB"):
 
     # Check for the volume column and convert it to cm³
     volume_column = "Volume (L)"
+    volume_cm = None
     if volume_column in aerotrak_data.columns:
         aerotrak_data["Volume (cm³)"] = aerotrak_data[volume_column] * 1000
         volume_cm = aerotrak_data["Volume (cm³)"]
@@ -321,7 +330,7 @@ def process_aerotrak_data(file_path, instrument="AeroTrakB"):
         if burn_id in burn_log["Burn ID"].values:
             burn_date = burn_log[burn_log["Burn ID"] == burn_id]["Date"].values[0]
             filtered_aerotrak_data = apply_time_shift(
-                filtered_aerotrak_data, instrument, burn_id, burn_date
+                filtered_aerotrak_data, instrument, burn_date
             )
 
     # Check if there's a special case for burn3 rolling average
@@ -405,7 +414,7 @@ def process_dusttrak_data(file_path, instrument="DustTrak"):
         if burn_id in burn_log["Burn ID"].values:
             burn_date = burn_log[burn_log["Burn ID"] == burn_id]["Date"].values[0]
             filtered_data = apply_time_shift(
-                filtered_data, instrument, burn_id, burn_date
+                filtered_data, instrument, burn_date
             )
 
     return filtered_data
@@ -441,7 +450,7 @@ def process_miniams_data(file_path, instrument="MiniAMS"):
         if burn_id in burn_log["Burn ID"].values:
             burn_date = burn_log[burn_log["Burn ID"] == burn_id]["Date"].values[0]
             filtered_data = apply_time_shift(
-                filtered_data, instrument, burn_id, burn_date
+                filtered_data, instrument, burn_date
             )
 
     return filtered_data
@@ -704,7 +713,7 @@ def process_smps_data(file_path, instrument="SMPS"):
                     [combined_smps_data, result_df], ignore_index=True
                 )
 
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             print(f"Error processing SMPS file for date {burn_date}: {str(e)}")
 
     # Final check of data quality
@@ -757,7 +766,7 @@ def process_quantaq_data(file_path, instrument="QuantAQB"):
         if burn_id in burn_log["Burn ID"].values:
             burn_date = burn_log[burn_log["Burn ID"] == burn_id]["Date"].values[0]
             filtered_data = apply_time_shift(
-                filtered_data, instrument, burn_id, burn_date
+                filtered_data, instrument, burn_date
             )
 
     return filtered_data
@@ -925,7 +934,7 @@ def create_toc_figure(burn_to_plot=BURN_TO_PLOT):
             color_idx += 1
             print(f"Plotted {instrument} ({location}) - {pollutant} as {display_name}")
 
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             print(f"Error plotting {instrument}: {str(e)}")
             continue
 
@@ -936,16 +945,17 @@ def create_toc_figure(burn_to_plot=BURN_TO_PLOT):
     cr_box_on_time_str = burn_row["CR Box on"].iloc[0]
     if pd.notna(cr_box_on_time_str):
         cr_box_on_time = create_naive_datetime(burn_date.date(), cr_box_on_time_str)
-        cr_box_on_time_since_garage_closed = (
-            cr_box_on_time - garage_closed_time
-        ).total_seconds() / 3600
-        ax.axvline(
-            x=cr_box_on_time_since_garage_closed,
-            color='black',
-            linewidth=1,
-            linestyle='--',
-            label='CR Box on'
-        )
+        if pd.notna(cr_box_on_time) and pd.notna(garage_closed_time):
+            time_delta = cr_box_on_time - garage_closed_time
+            if hasattr(time_delta, 'total_seconds'):
+                cr_box_on_time_since_garage_closed = time_delta.total_seconds() / 3600
+                ax.axvline(
+                    x=cr_box_on_time_since_garage_closed,
+                    color='black',
+                    linewidth=1,
+                    linestyle='--',
+                    label='CR Box on'
+                )
 
     # Set axis properties
     ax.set_xlabel("Time Since Garage Closed (hours)", fontsize=10)
@@ -979,7 +989,7 @@ def main():
         create_toc_figure(BURN_TO_PLOT)
         print("\nTOC figure created successfully!")
 
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         print(f"Error in main function: {e}")
         traceback.print_exc()
 
