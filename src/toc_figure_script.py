@@ -36,10 +36,7 @@ script_dir = Path(__file__).parent
 repo_root = script_dir.parent
 sys.path.insert(0, str(repo_root))
 
-# pylint: disable=wrong-import-position
 from src.data_paths import get_data_root, get_instrument_path, get_common_file
-# pylint: enable=wrong-import-position
-
 
 # Set the absolute path for the dataset
 data_root = get_data_root()  # Portable path - auto-configured
@@ -189,7 +186,6 @@ INSTRUMENT_CONFIG = {
     },
 }
 
-
 # Utility function to create timezone-naive datetime
 def create_naive_datetime(date_str, time_str):
     """Create a timezone-naive datetime object from date and time strings"""
@@ -197,7 +193,6 @@ def create_naive_datetime(date_str, time_str):
     if pd.notna(dt) and hasattr(dt, "tz") and dt.tz is not None:
         dt = dt.tz_localize(None)
     return dt
-
 
 # Modified apply_time_shift function
 def apply_time_shift(df, instrument, burn_date):
@@ -217,7 +212,6 @@ def apply_time_shift(df, instrument, burn_date):
 
     return df
 
-
 # Helper function to filter data by burn dates
 def filter_by_burn_dates(data, burn_range, datetime_column):
     """Filter data by burn dates from burn log"""
@@ -230,7 +224,6 @@ def filter_by_burn_dates(data, burn_range, datetime_column):
         return data[data["Date"].isin(burn_dates.dt.date)]
     else:
         raise KeyError(f"Column '{datetime_column}' not found in the dataset.")
-
 
 # Function to process AeroTrak data
 def process_aerotrak_data(file_path, instrument="AeroTrakB"):
@@ -358,7 +351,6 @@ def process_aerotrak_data(file_path, instrument="AeroTrakB"):
 
     return filtered_aerotrak_data
 
-
 # Function to calculate 5-minute rolling average for burn3
 def calculate_rolling_average_burn3(data):
     """Calculate 5-minute rolling average for burn3 data"""
@@ -397,7 +389,6 @@ def calculate_rolling_average_burn3(data):
     ].values
     return data
 
-
 # Function to process DustTrak data
 def process_dusttrak_data(file_path, instrument="DustTrak"):
     """Process DustTrak data with standardized output format"""
@@ -435,7 +426,7 @@ def process_dusttrak_data(file_path, instrument="DustTrak"):
 
     return filtered_data
 
-
+# Function to process MiniAMS data
 def process_miniams_data(file_path, instrument="MiniAMS"):
     """Process Mini-AMS data with standardized output format"""
     miniams_data = pd.read_excel(file_path)
@@ -471,7 +462,6 @@ def process_miniams_data(file_path, instrument="MiniAMS"):
 
     return filtered_data
 
-
 # Function to process PurpleAirK data
 def process_purpleairk_data(file_path):
     """Process PurpleAirK data with standardized output format"""
@@ -483,7 +473,6 @@ def process_purpleairk_data(file_path):
 
     # Filter by burn dates using 'DateTime' column (burns 6-10 for PurpleAir)
     return filter_by_burn_dates(purpleair_data, range(6, 11), "DateTime")
-
 
 # Function to process SMPS data
 def process_smps_data(file_path, instrument="SMPS"):
@@ -750,7 +739,6 @@ def process_smps_data(file_path, instrument="SMPS"):
 
     return combined_smps_data
 
-
 # Function to process QuantAQ data
 def process_quantaq_data(file_path, instrument="QuantAQB"):
     """Process QuantAQ data with standardized output format"""
@@ -787,7 +775,6 @@ def process_quantaq_data(file_path, instrument="QuantAQB"):
 
     return filtered_data
 
-
 def determine_instrument_location(instrument, burn_id):
     """Determine if instrument is in bedroom or kitchen for the given burn"""
     # Extract burn number
@@ -807,7 +794,6 @@ def determine_instrument_location(instrument, burn_id):
     else:
         return "unknown"
 
-
 def get_pm25_equivalent_pollutant(instrument):
     """Get the appropriate PM2.5 equivalent pollutant for each instrument"""
     if instrument.startswith("AeroTrak"):
@@ -817,10 +803,8 @@ def get_pm25_equivalent_pollutant(instrument):
     else:
         return "PM2.5 (µg/m³)"  # Use PM2.5 for others
 
-
-def create_toc_figure(burn_to_plot=BURN_TO_PLOT, instruments_to_plot=INSTRUMENTS_TO_PLOT, text_sizes=None):
+def create_toc_figure(burn_to_plot=BURN_TO_PLOT, instruments_to_plot=None, text_sizes=None):
     """Create high-quality TOC figure for a single burn
-    
     Parameters:
     -----------
     burn_to_plot : str
@@ -832,9 +816,10 @@ def create_toc_figure(burn_to_plot=BURN_TO_PLOT, instruments_to_plot=INSTRUMENTS
         Dictionary with text size settings. If None, uses global TEXT_SIZES.
         Keys: 'xlabel', 'ylabel', 'legend', 'title'
     """
+    if instruments_to_plot is None:
+        instruments_to_plot = INSTRUMENTS_TO_PLOT
     if text_sizes is None:
         text_sizes = TEXT_SIZES
-    
     print(f"Creating TOC figure for {burn_to_plot}...")
     print(f"Instruments to plot: {instruments_to_plot if instruments_to_plot else 'All available (except MiniAMS)'}")
 
@@ -849,9 +834,9 @@ def create_toc_figure(burn_to_plot=BURN_TO_PLOT, instruments_to_plot=INSTRUMENTS
     garage_closed_time = create_naive_datetime(burn_date.date(), garage_closed_time_str)
 
     # Set figure size and DPI for exact pixel dimensions
-    # 555px wide × 1055px tall at 100 DPI
-    fig_width_inches = 555 / 100
-    fig_height_inches = 1055 / 100
+    # 550px wide × 1050px tall at 100 DPI
+    fig_width_inches = 550 / 100
+    fig_height_inches = 1050 / 100
     dpi = 100
 
     # Create figure with transparent background
@@ -1022,7 +1007,6 @@ def create_toc_figure(burn_to_plot=BURN_TO_PLOT, instruments_to_plot=INSTRUMENTS
 
     plt.close()
 
-
 def main():
     """Main function to create the TOC figure"""
     try:
@@ -1034,7 +1018,6 @@ def main():
     except Exception as e:  # pylint: disable=broad-exception-caught
         print(f"Error in main function: {e}")
         traceback.print_exc()
-
 
 # If this script is run directly, execute the main function
 if __name__ == "__main__":

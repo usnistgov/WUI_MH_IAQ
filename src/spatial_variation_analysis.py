@@ -5,43 +5,48 @@ WUI Spatial Variation Analysis Script
 =====================================
 
 This script quantifies spatial variability of particulate matter (PM) concentrations
-between two locations within a manufactured home test structure during wildfire smoke
-infiltration experiments. The analysis compares bedroom2 (reference location) versus
-the morning room (kitchen area) to characterize the uniformity of smoke distribution
-and mitigation effectiveness across the indoor environment.
+between two locations (bedroom2 vs. morning room) within a manufactured home during
+wildfire smoke infiltration experiments. The analysis characterizes smoke distribution
+uniformity and mitigation effectiveness across the indoor environment.
 
-Note: This analysis processes burns with 1 and 2 CR Box (portable air cleaner)
-configurations. Burns with 4 CR Boxes have been excluded due to data quality issues.
+Note: Processes burns with 1 and 2 CR Box configurations only. Burns with 4 CR Boxes
+excluded due to data quality issues.
 
 Key Metrics Calculated:
     - Peak Ratio Index (PRI): Ratio of peak PM concentrations between locations
-    - CR Box Activation Ratio: Ratio of PM concentrations at CR Box activation time
-    - Average Ratio: Time-averaged concentration ratio during decay period
-    - Relative Standard Deviation (RSD): Coefficient of variation between locations
+    - CR Box Activation Ratio: PM concentration ratio at air cleaner activation time
+    - Average Ratio: Time-averaged concentration ratio during 2-hour decay period
+    - Relative Standard Deviation (RSD): Temporal variability of spatial ratios
 
 Analysis Features:
     - Multi-instrument processing (AeroTrak optical particle counters, QuantAQ sensors)
     - Size-resolved PM analysis (PM0.5, PM1, PM2.5, PM3, PM5, PM10, PM25)
-    - Time-synchronized data alignment with burn experiment timeline
-    - CR Box (portable air cleaner) activation-based analysis windows
-    - Baseline correction and data quality filtering
+    - Time-synchronized data alignment with burn timeline
+    - Instrument-specific time shifts and baseline corrections
     - Statistical outlier removal (ratios outside 0.1-10 range)
 
 Methodology:
-    1. Load peak concentration data from pre-processed Excel files
-    2. Process time-series data from AeroTrak and QuantAQ instruments
-    3. Apply instrument-specific time shifts and baseline corrections
-    4. Calculate peak ratios from maximum concentrations during each burn
-    5. Calculate CR Box activation ratios at the moment of air cleaner turn-on
-    6. Calculate average ratios over 2-hour decay windows post-CR Box activation
-    7. Compute RSD to quantify temporal variability in spatial ratios
-    8. Export results to Excel with separate sheets for each instrument type
+    1. Load peak concentration data and time-series data from instruments
+    2. Apply time shifts and baseline corrections
+    3. Calculate peak ratios from maximum concentrations during each burn
+    4. Calculate CR Box activation ratios at air cleaner turn-on moment
+    5. Calculate average ratios over 2-hour decay windows
+    6. Compute RSD to quantify temporal variability
+    7. Export results to Excel with instrument-specific sheets
 
-Output Files:
-    - spatial_variation_analysis.xlsx: Complete results with AeroTrak and QuantAQ sheets
+Outputs:
+    Files:
+        - spatial_variation_analysis.xlsx: Results with AeroTrak and QuantAQ sheets
+          containing burn-by-burn ratios for each PM size
+
+    Terminal:
+        - Data loading confirmations and file paths
+        - Processing progress for each burn and instrument
+        - Ratio metrics (R_I, R_CR, R_ave, RSD) for each PM size
+        - Summary statistics (mean ratios, number of burns analyzed)
 
 Applications:
-    - Assess smoke mixing and stratification within the test house
+    - Assess smoke mixing and stratification within test house
     - Evaluate spatial uniformity assumptions for CADR calculations
     - Identify room-to-room transport characteristics
     - Validate single-point measurement representativeness
@@ -183,6 +188,8 @@ def apply_time_shift(df, instrument, burn_date):
 def create_naive_datetime(date_str, time_str):
     """Create a timezone-naive datetime object from date and time strings"""
     dt = pd.to_datetime(f"{date_str} {time_str}", errors="coerce")
+    if pd.isna(dt):
+        return pd.NaT
     if hasattr(dt, "tz") and dt.tz is not None:
         dt = dt.tz_localize(None)
     return dt
@@ -244,6 +251,8 @@ def process_aerotrak_data(file_path, instrument="AeroTrakB"):
             aerotrak_data[volume_column] * 1000
         )  # Convert to cm³
         volume_cm = aerotrak_data["Volume (cm³)"]
+    else:
+        raise ValueError(f"Required column '{volume_column}' not found in AeroTrak data")
 
     def g_mean(x):
         """Calculate geometric mean"""
@@ -332,12 +341,9 @@ def process_aerotrak_data(file_path, instrument="AeroTrakB"):
     status_columns = ["Flow Status", "Laser Status"]
     if all(col in aerotrak_data.columns for col in status_columns):
         valid_status = (aerotrak_data[status_columns] == "OK").all(axis=1)
-        for col in aerotrak_data.columns:
-            if pd.api.types.is_numeric_dtype(aerotrak_data[col]) and col not in [
-                "Date and Time",
-                "Sample Time",
-                "Volume (L)",
-            ]:
+        exclude_cols = ["Date and Time", "Sample Time", "Volume (L)"]
+        for col in list(aerotrak_data.columns):
+            if pd.api.types.is_numeric_dtype(aerotrak_data[col]) and col not in exclude_cols:
                 aerotrak_data.loc[~valid_status, col] = pd.NA
     # Filter based on burn dates
     burn_ids = [f"burn{i}" for i in range(1, 11)]
@@ -396,16 +402,14 @@ def process_aerotrak_data(file_path, instrument="AeroTrakB"):
 
     # Calculate Time Since Garage Closed for each burn
     for burn_id in burn_ids:
-        burn_mask = (
-            filtered_aerotrak_data["Date"]
-            == pd.to_datetime(
-                burn_log[burn_log["Burn ID"] == burn_id]["Date"].values[0]
-                if burn_id in burn_log["Burn ID"].values
-                else pd.NaT
-            ).date()
-        )
+        if burn_id not in burn_log["Burn ID"].values:
+            continue
 
-        if burn_mask.any() and burn_id in burn_log["Burn ID"].values:
+        burn_date_value = burn_log[burn_log["Burn ID"] == burn_id]["Date"].values[0]
+        burn_date_as_date = pd.to_datetime(burn_date_value).date()
+        burn_mask = filtered_aerotrak_data["Date"] == burn_date_as_date
+
+        if burn_mask.any():
             burn_info = burn_log[burn_log["Burn ID"] == burn_id]
             garage_closed_time_str = burn_info["garage closed"].iloc[0]
             burn_date = burn_info["Date"].iloc[0]
@@ -415,13 +419,20 @@ def process_aerotrak_data(file_path, instrument="AeroTrakB"):
                     burn_date, garage_closed_time_str
                 )
 
-                # Calculate time since garage closed in hours
-                filtered_aerotrak_data.loc[
-                    burn_mask, "Time Since Garage Closed (hours)"
-                ] = (
-                    filtered_aerotrak_data.loc[burn_mask, "Date and Time"]
-                    - garage_closed_time
-                ).dt.total_seconds() / 3600
+                if pd.notna(garage_closed_time):
+                    # Calculate time since garage closed in hours
+                    # Get indices where mask is True
+                    mask_indices = filtered_aerotrak_data.index[burn_mask]
+
+                    # Iterate through mask and calculate time differences
+                    garage_closed_timestamp = pd.Timestamp(garage_closed_time)
+                    for idx in mask_indices:
+                        datetime_val = filtered_aerotrak_data.at[idx, "Date and Time"]
+                        if pd.notna(datetime_val) and isinstance(datetime_val, (pd.Timestamp, np.datetime64)):
+                            time_diff = pd.Timestamp(datetime_val) - garage_closed_timestamp
+                            filtered_aerotrak_data.at[idx, "Time Since Garage Closed (hours)"] = (
+                                time_diff.total_seconds() / 3600
+                            )
 
     return filtered_aerotrak_data
 
@@ -480,11 +491,20 @@ def process_quantaq_data(file_path, instrument="QuantAQB"):
                         burn_date, garage_closed_time_str
                     )
 
-                    # Calculate time since garage closed in hours
-                    filtered_data.loc[burn_mask, "Time Since Garage Closed (hours)"] = (
-                        filtered_data.loc[burn_mask, "timestamp_local"]
-                        - garage_closed_time
-                    ).dt.total_seconds() / 3600
+                    if pd.notna(garage_closed_time):
+                        # Calculate time since garage closed in hours
+                        # Get indices where mask is True
+                        mask_indices = filtered_data.index[burn_mask]
+
+                        # Iterate through mask and calculate time differences
+                        garage_closed_timestamp = pd.Timestamp(garage_closed_time)
+                        for idx in mask_indices:
+                            datetime_val = filtered_data.at[idx, "timestamp_local"]
+                            if pd.notna(datetime_val) and isinstance(datetime_val, (pd.Timestamp, np.datetime64)):
+                                time_diff = pd.Timestamp(datetime_val) - garage_closed_timestamp
+                                filtered_data.at[idx, "Time Since Garage Closed (hours)"] = (
+                                    time_diff.total_seconds() / 3600
+                                )
 
     return filtered_data
 

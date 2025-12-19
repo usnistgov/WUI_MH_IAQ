@@ -60,7 +60,6 @@ All analysis scripts are located in the `src/` directory and organized by analys
 - **`spatial_variation_analysis_plot.py`** - Interactive Bokeh visualizations of spatial variation metrics comparing bedroom vs morning room under different CR Box configurations
 
 ### Instrument Comparison and Validation
-- **`aerotrak_vs_smps.py`** - Comparison between AeroTrak optical particle counter and SMPS measurements
 - **`dusttrak-rh_comparison.py`** - Analysis of DustTrak performance and relative humidity effects
 - **`purpleair_comparison.py`** - Validation of low-cost PurpleAir sensors against reference instruments
 - **`quantaq_pm2_5_burn8.py`** - Detailed QuantAQ sensor analysis for specific burn experiment
@@ -79,7 +78,7 @@ All analysis scripts are located in the `src/` directory and organized by analys
 ### Data Processing Utilities
 - **`remove_aerotrak_dup_data.py`** - Data cleaning script for removing duplicate AeroTrak timestamps
 - **`mh_relay_control_log.py`** - Processing of relay control system logs for HVAC and filtration operation
-- **`process_aerotrak_data.py`** - Core processing module for TSI AeroTrak particle counter data files (calculates mass and number concentrations, PM metrics)
+ concentrations, PM metrics)
 
 ### Publication Figures
 - **`toc_figure_script.py`** - Generates single burn PM2.5 concentration figure for journal Table of Contents graphic (WUI implications paper)

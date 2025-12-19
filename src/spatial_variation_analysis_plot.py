@@ -53,11 +53,9 @@ import numpy as np
 from scipy.interpolate import interp1d, make_interp_spline
 from scipy import stats
 
-
 # ============================================================================
 # SYSTEM DETECTION AND PATH SETUP
 # ============================================================================
-
 
 # Use portable data paths - no longer need system detection!
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -70,7 +68,6 @@ from scripts import get_script_metadata
 # Get portable paths
 BASE_DIR = str(get_data_root())
 print(f"[OK] Using data directory: {BASE_DIR}")
-
 
 # ============================================================================
 # CONFIGURATION
@@ -121,7 +118,7 @@ RATIO_METRICS = ["Peak_Ratio_Index", "CRBox_Activation_Ratio", "Average_Ratio"]
 # Plot configuration
 PLOT_Y_RANGE = (0, 1.5)  # Y-axis range for ratio plots
 X_AXIS_TICKS = [1, 2]  # X-axis tick positions (CR Box counts)
-X_AXIS_LABELS = {1: "1", 2: "2"}  # Custom labels for x-axis
+X_AXIS_LABELS = {1.0: "1", 2.0: "2"}  # Custom labels for x-axis (keys must be float)
 
 
 # ============================================================================
@@ -252,8 +249,13 @@ def perform_linear_fit(x_data, y_data):
             return None
         x, y = np.array(x_data), np.array(y_data)
         n = len(x)
-        slope, intercept, r_value, slope_stderr = stats.linregress(x, y)
-        r_squared = r_value**2
+        # Unpack linregress result - returns LinregressResult with named attributes
+        linreg_result = stats.linregress(x, y)
+        slope = float(linreg_result.slope)  # type: ignore
+        intercept = float(linreg_result.intercept)  # type: ignore
+        r_value = float(linreg_result.rvalue)  # type: ignore
+        slope_stderr = float(linreg_result.stderr)  # type: ignore
+        r_squared = float(r_value) ** 2
         y_pred = slope * x + intercept
         ss_res = np.sum((y - y_pred) ** 2)
         # Calculate x_mean first, then ss_x (ss_x depends on x_mean)
@@ -404,7 +406,7 @@ def create_spatial_variation_plot(
         title=f"Spatial Variation Analysis - {pm_size}",
         x_axis_label="Number of CR Boxes",
         y_axis_label="Concentration Ratio (Bedroom2 / Morning Room)",
-        y_range=PLOT_Y_RANGE,
+        y_range=(float(PLOT_Y_RANGE[0]), float(PLOT_Y_RANGE[1])),  # type: ignore
         width=800,
         height=600,
     )
@@ -529,7 +531,7 @@ def create_spatial_variation_plot(
 
     # Customize x-axis ticks and labels
     p.xaxis.ticker = X_AXIS_TICKS
-    p.xaxis.major_label_overrides = X_AXIS_LABELS
+    p.xaxis.major_label_overrides = X_AXIS_LABELS  # type: ignore
 
     # Customize legend
     p.legend.location = "top_right"
@@ -578,7 +580,9 @@ def main():
     try:
         metadata = get_script_metadata()
         print("Metadata loaded successfully")
-    except Exception as e:
+    except (ImportError, AttributeError, OSError, RuntimeError) as e:
+        # ImportError: module not found, AttributeError: function not found
+        # OSError: file system issues, RuntimeError: execution errors
         metadata = "Metadata unavailable"
         print(f"Metadata not available: {e}")
 

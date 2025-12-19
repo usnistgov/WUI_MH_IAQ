@@ -1,70 +1,25 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-AHAM AC-1 Test Standard Comparison with IEQ Test House Measurements
-====================================================================
+AHAM AC-1 Test Standard Comparison
+===================================
 
-This script compares the Association of Home Appliance Manufacturers (AHAM)
-AC-1 test environment smoke concentration standard with actual particulate
-matter measurements from the IEQ test house during wildland-urban interface
-(WUI) fire burn experiments. The AC-1 standard specifies test smoke
-concentrations of 24,000–35,000 particles/cm³ for particles sized 0.1–1.0 µm.
+Compare AHAM AC-1 test smoke concentrations (24,000-35,000 #/cm³, 0.1-1.0 µm)
+with WUI fire QuantAQ measurements to determine equivalent PM1 mass concentrations.
 
-The analysis calculates conversion factors between gravimetric PM1 mass
-concentration (µg/m³) and particle number concentration (#/cm³) at peak smoke
-concentrations, then applies these factors to determine what the equivalent
-AC-1 concentration range would be in mass units for each burn.
+Calculates conversion factors between particle number concentration (#/cm³) and
+PM1 mass (µg/m³) at peak concentrations for burns 4-10, then translates AC-1
+standard range to mass units for both bedroom2 and morning room locations.
 
-Key Metrics Calculated:
-    - Peak PM1 mass concentration (µg/m³) during each burn
-    - Particle number concentration (#/cm³) at peak PM1 timestamp
-    - Conversion factor: PM1 mass per unit particle count
-    - Equivalent AC-1 concentration range in PM1 mass units
-    - Cross-burn and cross-instrument statistical comparison
+Note: QuantAQ measures 0.35-1.0 µm (bins 0-2) vs AC-1 spec of 0.1-1.0 µm,
+providing conservative estimates (excludes 0.1-0.35 µm particles).
 
-Analysis Features:
-    - Processes burns 4-10 from the experimental campaign
-    - Compares two QuantAQ sensor locations (bedroom2 and morning room)
-    - Accounts for instrument time synchronization offsets
-    - Handles particle size range limitations (QuantAQ: 0.35–1.0 µm vs AC-1: 0.1–1.0 µm)
-    - Calculates summary statistics: mean, median, standard deviation
+Outputs:
+    Terminal: Results table with burn ID, instrument, max PM1, particle count,
+              and AC-1 equivalent ranges. Summary statistics (mean, median, std dev)
+              for all metrics and per-instrument comparisons.
 
-Methodology:
-    1. Load burn log (Sheet2) to identify burn dates for burns 4-10
-    2. For each burn, load QuantAQ data from bedroom2 (MOD-PM-00194) and morning room (MOD-PM-00197)
-    3. Apply instrument-specific time shift corrections for synchronization
-    4. Filter data to burn-specific date
-    5. Identify absolute maximum PM1 concentration and its timestamp
-    6. At peak PM1 timestamp, sum particle counts from bins 0-2 (covering 0.35–1.0 µm)
-    7. Calculate conversion factor: max_pm1 / particle_count_sum
-    8. Apply conversion to AC-1 standard range: [24,000 × factor, 35,000 × factor]
-    9. Compile results across all burns and both instruments
-    10. Calculate and report summary statistics
-
-Output:
-    - Console table: Burn | Instrument | Max PM1 (µg/m³) | Particle Count (#/cm³) | AC-1 Range
-    - Summary statistics: mean, median, standard deviation for each metric
-    - Instrument comparison statistics
-
-Data Sources:
-    - burn_log.xlsx (Sheet2): Burn dates and experimental metadata
-    - QuantAQ MOD-PM-00194: Bedroom2 sensor data (pm1, bin0, bin1, bin2)
-    - QuantAQ MOD-PM-00197: Morning room sensor data (pm1, bin0, bin1, bin2)
-
-Important Notes:
-    - Particle size range mismatch: QuantAQ bins cover 0.35–1.0 µm, while AC-1 specifies 0.1–1.0 µm
-    - This means QuantAQ measurements exclude particles between 0.1–0.35 µm
-    - The comparison provides a conservative estimate (actual AC-1 would be higher)
-    - Data has been pre-QA/QC'd, no additional filtering applied
-
-Applications:
-    - Air cleaner performance testing protocol comparison
-    - Standardized test environment assessment
-    - Wildfire smoke characterization vs. synthetic test smoke
-    - Real-world exposure metric translation to lab test conditions
-
-Author: Nathan Lima
-Institution: National Institute of Standards and Technology (NIST)
+Author: Nathan Lima, NIST
 Date: 2025
 """
 
@@ -72,38 +27,23 @@ Date: 2025
 # IMPORT MODULES
 # ============================================================================
 # Standard library
-import os
 import warnings
+import sys
+from pathlib import Path
 
 # Third-party
 import pandas as pd
 
+# Add repository root to path for portable data access
+script_dir = Path(__file__).parent
+repo_root = script_dir.parent
+sys.path.insert(0, str(repo_root))
+
+# Local imports
+from data_paths import get_common_file, get_instrument_path
+
 # Suppress warnings for cleaner output
 warnings.filterwarnings("ignore")
-
-
-# ============================================================================
-# SYSTEM DETECTION AND PATH SETUP
-# ============================================================================
-def detect_system():
-    """Detect which system the script is running on
-
-    Returns:
-        str: 'desktop' if running on desktop with OneDrive, 'laptop' otherwise
-    """
-    desktop_onedrive_path = r"C:\Users\nml\OneDrive - NIST"
-    if os.path.exists(desktop_onedrive_path):
-        return "desktop"
-    return "laptop"
-
-
-# Detect system and set base path accordingly
-SYSTEM = detect_system()
-
-if SYSTEM == "desktop":
-    BASE_PATH = r"C:\Users\nml\OneDrive - NIST\Documents\NIST\WUI_smoke"
-else:  # laptop
-    BASE_PATH = r"C:\Users\Nathan\Documents\NIST\WUI_smoke"
 
 
 # ============================================================================
@@ -111,13 +51,9 @@ else:  # laptop
 # ============================================================================
 
 # File paths
-BURN_LOG_PATH = os.path.join(BASE_PATH, str(get_common_file('burn_log')))
-QUANTAQ_BEDROOM_PATH = os.path.join(
-    BASE_PATH, str(get_instrument_path('quantaq_bedroom') / 'MOD-PM-00194-b0fc215029fa4852b926bc50b28fda5a.csv')
-)
-QUANTAQ_MORNING_ROOM_PATH = os.path.join(
-    BASE_PATH, str(get_instrument_path('quantaq_kitchen') / 'MOD-PM-00197-a6dd467a147a4d95a7b98a8a10ab4ea3.csv')
-)
+BURN_LOG_PATH = get_common_file('burn_log')
+QUANTAQ_BEDROOM_PATH = get_instrument_path('quantaq_bedroom') / 'MOD-PM-00194-b0fc215029fa4852b926bc50b28fda5a.csv'
+QUANTAQ_MORNING_ROOM_PATH = get_instrument_path('quantaq_kitchen') / 'MOD-PM-00197-a6dd467a147a4d95a7b98a8a10ab4ea3.csv'
 
 # AHAM AC-1 test standard concentration range (#/cm³) for particles 0.1-1.0 µm
 AC1_LOWER_LIMIT = 24000  # particles/cm³
@@ -152,7 +88,7 @@ def load_burn_log(filepath):
         burn_log = pd.read_excel(filepath, sheet_name="Sheet2")
         print(f"Loaded burn log: {len(burn_log)} entries")
         return burn_log
-    except Exception as e:
+    except (FileNotFoundError, ValueError, OSError) as e:
         print(f"ERROR loading burn log: {str(e)[:100]}")
         return None
 
@@ -183,12 +119,12 @@ def load_quantaq_data(filepath, instrument_name):
         data["timestamp_local"] += pd.Timedelta(minutes=time_shift_minutes)
 
         # Create date column for filtering
-        data["Date"] = data["timestamp_local"].dt.date
+        data["Date"] = data["timestamp_local"].dt.date  # type: ignore[attr-defined]
 
         print(f"  Loaded {instrument_name}: {len(data)} records")
         return data
 
-    except Exception as e:
+    except (FileNotFoundError, ValueError, KeyError, OSError) as e:
         print(f"  ERROR loading {instrument_name}: {str(e)[:100]}")
         return None
 
@@ -264,7 +200,7 @@ def calculate_peak_metrics(data, burn_date, burn_id, instrument_name):
             "ac1_upper": ac1_upper_equiv,
         }
 
-    except Exception as e:
+    except (KeyError, ValueError, IndexError) as e:
         print(f"    ERROR processing {burn_id} for {instrument_name}: {str(e)[:100]}")
         return None
 
