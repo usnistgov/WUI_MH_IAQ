@@ -88,9 +88,9 @@ from scripts.instrument_config import (
 ```
 
 **Changes:**
-- ✅ Removed imports only needed for utility functions (datetime, inspect, traceback, etc.)
-- ✅ Added imports from utility modules
-- ✅ Organized imports by category (standard library, third-party, local, utilities)
+- Removed imports only needed for utility functions (datetime, inspect, traceback, etc.)
+- Added imports from utility modules
+- Organized imports by category (standard library, third-party, local, utilities)
 
 ---
 
@@ -203,9 +203,9 @@ cr_box_hours = get_cr_box_times(burn_log, burn_numbers, relative_to_garage=True)
 ```
 
 **Changes:**
-- ✅ 33 lines → 5 lines
-- ✅ Clearer intent with function names
-- ✅ Error handling built into utility functions
+- 33 lines → 5 lines
+- Clearer intent with function names
+- Error handling built into utility functions
 
 ---
 
@@ -384,11 +384,11 @@ if "AeroTrak" in selected_instruments:
 ```
 
 **Changes:**
-- ✅ ~213 lines → ~35 lines
-- ✅ All complexity hidden in `process_aerotrak_data()`
-- ✅ Easier to read and understand
-- ✅ Consistent error handling
-- ✅ Eliminated bedroom/kitchen code duplication
+- ~213 lines → ~35 lines
+- All complexity hidden in `process_aerotrak_data()`
+- Easier to read and understand
+- Consistent error handling
+- Eliminated bedroom/kitchen code duplication
 
 ---
 
@@ -496,9 +496,9 @@ if "QuantAQ" in selected_instruments:
 ```
 
 **Changes:**
-- ✅ ~190 lines → ~40 lines
-- ✅ Use `get_burn_range_for_instrument()` for clearer intent
-- ✅ All bin summing logic in `process_quantaq_data()`
+- ~190 lines → ~40 lines
+- Use `get_burn_range_for_instrument()` for clearer intent
+- All bin summing logic in `process_quantaq_data()`
 
 ---
 
@@ -550,8 +550,8 @@ if "SMPS" in selected_instruments:
 ```
 
 **Changes:**
-- ✅ ~177 lines → ~20 lines
-- ✅ All datetime fixing, transposing, binning in `process_smps_data()`
+- ~177 lines → ~20 lines
+- All datetime fixing, transposing, binning in `process_smps_data()`
 
 ---
 
@@ -630,9 +630,9 @@ def create_plots_for_burn(burn_number):
 ```
 
 **Changes:**
-- ✅ Figure creation: ~20 lines → 5 lines
-- ✅ Event markers: ~30 lines → 3 lines
-- ✅ Legend config: ~3 lines → 1 line
+- Figure creation: ~20 lines → 5 lines
+- Event markers: ~30 lines → 3 lines
+- Legend config: ~3 lines → 1 line
 
 ---
 

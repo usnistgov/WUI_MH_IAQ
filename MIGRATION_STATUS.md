@@ -2,11 +2,11 @@
 
 **Date:** 2025-12-17
 **Machine:** Lenovo-ThinkPad (Laptop)
-**Status:** ✅ Phase 1 Complete - Infrastructure Ready
+**Status:** Phase 1 Complete - Infrastructure Ready
 
 ---
 
-## ✅ Completed Tasks
+## Completed Tasks
 
 ### Infrastructure Setup
 - [x] Created directory structure (`data/`, `results/` with subdirectories)
@@ -30,7 +30,7 @@
 
 ---
 
-## 📊 Configuration Status
+## Configuration Status
 
 **Your Laptop Configuration:**
 ```
@@ -61,9 +61,9 @@ Config File: data_config.json ✓
 
 ---
 
-## 🔄 Migration Progress
+## Migration Progress
 
-### Phase 1: Infrastructure ✅ COMPLETE
+### Phase 1: Infrastructure COMPLETE
 - Portable path system created
 - Configuration files in place
 - 3 example scripts updated
@@ -109,7 +109,7 @@ The following scripts in `src/` still use hardcoded paths:
 
 ---
 
-## 📝 How to Use the New System
+## How to Use the New System
 
 ### For Scripts You've Already Updated
 
@@ -181,7 +181,7 @@ python -c "from src import get_common_file; print(get_common_file('burn_log'))"
 
 ---
 
-## 🚀 Next Steps
+## Next Steps
 
 1. **Test Updated Scripts:** Run the 3 updated scripts to ensure they work correctly
 2. **Update More Scripts:** When you're ready, update additional scripts following the pattern
@@ -190,7 +190,7 @@ python -c "from src import get_common_file; print(get_common_file('burn_log'))"
 
 ---
 
-## 📚 Key Files
+## Key Files
 
 - **Configuration Template:** `data_config.template.json` (version controlled)
 - **Your Config:** `data_config.json` (not version controlled - your laptop paths)
@@ -200,7 +200,7 @@ python -c "from src import get_common_file; print(get_common_file('burn_log'))"
 
 ---
 
-## ⚠️ Important Notes
+## Important Notes
 
 1. **Never commit `data_config.json`** - it's in `.gitignore` for a reason (contains local paths)
 2. **Always commit `data_config.template.json`** - others need this to set up their config
@@ -209,16 +209,16 @@ python -c "from src import get_common_file; print(get_common_file('burn_log'))"
 
 ---
 
-## 💡 Benefits
+## Benefits
 
-- ✅ No more hardcoded paths in scripts
-- ✅ Works on laptop AND desktop automatically
-- ✅ Easy for collaborators to set up
-- ✅ Data stays local (not in repository)
-- ✅ Single config file to update if data moves
-- ✅ Clear documentation of all instruments
+- No more hardcoded paths in scripts
+- Works on laptop AND desktop automatically
+- Easy for collaborators to set up
+- Data stays local (not in repository)
+- Single config file to update if data moves
+- Clear documentation of all instruments
 
 ---
 
-**System Status:** 🟢 OPERATIONAL
+**System Status:** OPERATIONAL
 **Next Migration:** Update remaining scripts as needed for active analysis tasks

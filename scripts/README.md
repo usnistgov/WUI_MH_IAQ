@@ -353,12 +353,12 @@ p = create_standard_figure(title, x_range=(-1, 4), y_range=(1e-4, 1e5))
 
 ## Benefits
 
-✅ **Reduced Code Duplication**: Functions like `apply_time_shift()` and `calculate_rolling_average_burn3()` appeared in 6+ scripts - now centralized
-✅ **Consistency**: All scripts use the same time shifts, color palettes, and processing logic
-✅ **Maintainability**: Bug fixes and improvements in one place benefit all scripts
-✅ **Documentation**: Comprehensive docstrings with examples for all functions
-✅ **Testability**: Isolated functions are easier to test and validate
-✅ **Cleaner Scripts**: Analysis scripts focus on analysis logic, not boilerplate
+**Reduced Code Duplication**: Functions like `apply_time_shift()` and `calculate_rolling_average_burn3()` appeared in 6+ scripts - now centralized
+**Consistency**: All scripts use the same time shifts, color palettes, and processing logic
+**Maintainability**: Bug fixes and improvements in one place benefit all scripts
+**Documentation**: Comprehensive docstrings with examples for all functions
+**Testability**: Isolated functions are easier to test and validate
+**Cleaner Scripts**: Analysis scripts focus on analysis logic, not boilerplate
 
 ## Estimated Impact
 

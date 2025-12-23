@@ -67,10 +67,10 @@ try:
     assert TIME_SHIFTS['AeroTrakB'] == 2.16, "TIME_SHIFTS values incorrect"
     print("  ✓ TIME_SHIFTS constant available")
 
-    print("  ✅ datetime_utils module: ALL TESTS PASSED")
+    print("  datetime_utils module: ALL TESTS PASSED")
 
 except Exception as e:
-    print(f"  ❌ datetime_utils module: FAILED - {str(e)}")
+    print(f"  datetime_utils module: FAILED - {str(e)}")
     import traceback
     traceback.print_exc()
 
@@ -120,10 +120,10 @@ try:
     assert len(smoothed) == len(test_df), "Rolling average failed"
     print("  ✓ calculate_rolling_average_burn3 works")
 
-    print("  ✅ data_filters module: ALL TESTS PASSED")
+    print("  data_filters module: ALL TESTS PASSED")
 
 except Exception as e:
-    print(f"  ❌ data_filters module: FAILED - {str(e)}")
+    print(f"  data_filters module: FAILED - {str(e)}")
     import traceback
     traceback.print_exc()
 
@@ -169,10 +169,10 @@ try:
     assert 'coefficients' in result, "perform_polynomial_fit missing coefficients"
     print("  ✓ perform_polynomial_fit works")
 
-    print("  ✅ statistical_utils module: ALL TESTS PASSED")
+    print("  statistical_utils module: ALL TESTS PASSED")
 
 except Exception as e:
-    print(f"  ❌ statistical_utils module: FAILED - {str(e)}")
+    print(f"  statistical_utils module: FAILED - {str(e)}")
     import traceback
     traceback.print_exc()
 
@@ -278,12 +278,12 @@ try:
     })
     result_df = sum_quantaq_bins(test_df)
     assert 'Ʃ0.35-0.66µm (#/cm³)' in result_df.columns, "sum_quantaq_bins failed"
-    print("  ✓ sum_quantaq_bins works")
+    print("  sum_quantaq_bins works")
 
-    print("  ✅ instrument_config module: ALL TESTS PASSED")
+    print("  instrument_config module: ALL TESTS PASSED")
 
 except Exception as e:
-    print(f"  ❌ instrument_config module: FAILED - {str(e)}")
+    print(f"  instrument_config module: FAILED - {str(e)}")
     import traceback
     traceback.print_exc()
 
@@ -293,7 +293,7 @@ except Exception as e:
 print("\n" + "="*70)
 print("TEST SUMMARY")
 print("="*70)
-print("\n✅ All utility modules imported and tested successfully!")
+print("\nAll utility modules imported and tested successfully!")
 print("\nUtility modules are ready to use in analysis scripts.")
 print("\nNext steps:")
 print("  1. Review the README.md in the scripts/ directory")
