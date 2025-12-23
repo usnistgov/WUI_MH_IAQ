@@ -9,80 +9,77 @@ spatial variation and instrument agreement.
 
 Key Features:
     - Multi-instrument particle count overlay plots
-    - Separate panels for bedroom and kitchen instruments
-    - All burns displayed in a grid layout
-    - Normalized and absolute concentration scales
-    - Interactive Bokeh HTML outputs
+    - Separate panels for bedroom and kitchen locations
+    - All burns (1-10) processed automatically
+    - Logarithmic y-axis for wide concentration range
+    - Interactive Bokeh HTML outputs with synchronized time axes
 
 Instruments Compared:
     Bedroom Instruments:
-        - AeroTrakB: Total particle count (>0.3 µm)
-        - QuantAQB: PM-derived particle estimates
-        - SMPS: Ultrafine particle counts (via bedroom sampling)
+        - AeroTrakB: Size-resolved particle counts (0.3-25 µm, 6 channels)
+        - QuantAQB: Optical particle counter (0.35-40 µm, 24 bins)
+        - SMPS: Scanning Mobility Particle Sizer (9-437 nm)
 
     Kitchen Instruments:
-        - AeroTrakK: Total particle count (>0.3 µm)
-        - PurpleAir: PM-based particle estimates
-        - QuantAQK: PM-derived particle estimates
+        - AeroTrakK: Size-resolved particle counts (0.3-25 µm, 6 channels)
+        - QuantAQK: Optical particle counter (0.35-40 µm, 24 bins)
 
-Analysis Components:
-    1. Time series alignment across instruments
-    2. Concentration normalization for comparison
-    3. Peak identification and tracking
-    4. Instrument-to-instrument ratios
-    5. Temporal correlation analysis
+Data Processing Pipeline:
+    Uses centralized utility modules from scripts/ directory:
+    - data_loaders: Instrument-specific data loading and processing
+    - datetime_utils: Time synchronization and shift corrections
+    - data_filters: Quality filtering and rolling averages
+    - plotting_utils: Standardized figure creation and formatting
+    - instrument_config: Bin definitions and instrument configurations
 
 Visualization Features:
-    - Logarithmic y-axis for wide concentration range
-    - Color-coded by instrument
-    - Event markers (garage closed, CR Box on)
-    - Synchronized time axes across burns
-    - Interactive zoom and pan
+    - Logarithmic y-axis (1e-4 to 1e5 #/cm³)
+    - Time axis: -1 to 4 hours relative to garage closed
+    - Color-coded by instrument (Blues: AeroTrak, Greens: QuantAQ, Reds: SMPS)
+    - Event markers for garage closed and CR Box activation
+    - Interactive tooltips, zoom, and pan capabilities
 
 Research Applications:
-    - Validate instrument consistency
-    - Identify measurement artifacts
-    - Assess spatial uniformity
+    - Cross-validate instrument consistency
+    - Identify measurement artifacts or drift
+    - Assess spatial uniformity between bedroom and kitchen
     - Evaluate sensor performance across concentration ranges
+    - Compare ultrafine (SMPS) vs. larger particle (AeroTrak, QuantAQ) dynamics
 
 Outputs:
-    - Multi-panel HTML figures for bedroom instruments
-    - Multi-panel HTML figures for kitchen instruments
-    - Statistical comparison summary tables
-    - Instrument correlation matrices
-
-Data Processing:
-    - Time synchronization with instrument-specific shifts
-    - Baseline correction
-    - Quality flag filtering
-    - Resampling to common time base
-
-Dependencies:
-    - pandas: Data manipulation
-    - numpy: Numerical calculations
-    - bokeh: Interactive multi-panel visualization
+    For each burn:
+        - {burn}_bedroom_particle_count_comparison.html
+        - {burn}_kitchen_particle_count_comparison.html
 
 Configuration:
-    - Burn selection (all burns by default)
-    - Time range for each burn
-    - Y-axis limits (auto or fixed)
+    - selected_instruments: List of instruments to include ('AeroTrak', 'QuantAQ', 'SMPS')
+    - burn_numbers: Specific burns to process (default: all burns 1-10)
+    - DEBUG: Enable detailed diagnostic output
+
+Dependencies:
+    - pandas: Data manipulation and time series handling
+    - numpy: Numerical operations
+    - bokeh: Interactive HTML visualization
+    - Custom modules: src.data_paths, scripts.* utilities
+
+Notes:
+    - Instrument time shifts automatically applied for synchronization
+    - QuantAQ data only available for burns 4-10
+    - Burn 3 data includes 5-minute rolling average smoothing
+    - Status flags (Flow Status, Laser Status) used for quality filtering
 
 Author: Nathan Lima
 Date: 2024-2025
 """
 
 # %%
-import os
 import sys
-import datetime
-import inspect
 import traceback
 from pathlib import Path
 import pandas as pd
 import numpy as np
-from bokeh.plotting import figure, show
+from bokeh.plotting import show
 from bokeh.io import output_notebook, output_file
-from bokeh.models import Div, Range1d
 from bokeh.layouts import column
 from bokeh.palettes import Blues, Greens, Reds
 
@@ -91,7 +88,28 @@ script_dir = Path(__file__).parent
 repo_root = script_dir.parent
 sys.path.insert(0, str(repo_root))
 
+# pylint: disable=import-error,wrong-import-position
 from src.data_paths import get_data_root, get_instrument_path, get_common_file
+
+# Import utility functions
+from scripts.data_filters import split_data_by_nan
+from scripts.plotting_utils import (
+    create_standard_figure,
+    get_script_metadata,
+    add_event_markers,
+    configure_legend,
+    create_metadata_div,
+)
+from scripts.data_loaders import (
+    load_burn_log,
+    get_garage_closed_times,
+    get_cr_box_times,
+    process_aerotrak_data,
+    process_quantaq_data,
+    process_smps_data,
+)
+from scripts.instrument_config import get_burn_range_for_instrument
+# pylint: enable=import-error,wrong-import-position
 
 # %% Configuration parameters
 
@@ -109,388 +127,14 @@ selected_instruments = ["AeroTrak", "QuantAQ", "SMPS"]
 # Enable debug mode for additional diagnostic output
 DEBUG = False
 
-# %% Utility functions
-
-
-def get_script_metadata():
-    """Return a string with script name and execution timestamp"""
-    try:
-        current_frame = inspect.currentframe()
-        module = inspect.getmodule(current_frame) if current_frame else None
-        if module and hasattr(module, '__file__') and module.__file__:
-            script_name = os.path.basename(module.__file__)
-        else:
-            script_name = os.path.basename(__file__)
-    except (NameError, AttributeError, TypeError):
-        script_name = "general_particle_count_comparison.py"
-
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    return f"Generated by: {script_name} | Date: {timestamp}"
-
-
-def apply_time_shift(df, instrument, datetime_column):
-    """
-    Apply time shift to datetime column based on instrument configuration.
-
-    Parameters:
-    -----------
-    df : DataFrame
-        DataFrame containing data with datetime column
-    instrument : str
-        Instrument name to determine time shift
-    datetime_column : str
-        Name of the datetime column to shift
-
-    Returns:
-    --------
-    DataFrame
-        DataFrame with shifted datetime column
-    """
-    # Define time shifts for each instrument (minutes)
-    time_shifts = {
-        "AeroTrakB": 2.16,
-        "AeroTrakK": 5,
-        "QuantAQB": -2.97,
-        "QuantAQK": 0,
-        "SMPS": 0,
-    }
-
-    # Get time shift for instrument
-    time_shift = time_shifts.get(instrument, 0)
-
-    if time_shift != 0:
-        # Create a copy to avoid SettingWithCopyWarning
-        df = df.copy()
-        # Apply time shift
-        df[datetime_column] = df[datetime_column] + pd.Timedelta(minutes=time_shift)
-
-    return df
-
-
-def fix_smps_datetime(smps_data):
-    """
-    Fix the datetime creation for SMPS data.
-
-    Parameters:
-    -----------
-    smps_data : DataFrame
-        DataFrame containing SMPS data with Date and Start Time columns
-
-    Returns:
-    --------
-    DataFrame
-        DataFrame with fixed datetime column
-    """
-    # First check if the columns exist
-    if "Date" not in smps_data.columns or "Start Time" not in smps_data.columns:
-        print("  Error: Date or Start Time columns missing from SMPS data")
-        return smps_data
-
-    # Make a copy to avoid modifying the original
-    data = smps_data.copy()
-
-    # Print sample values for debugging
-    if DEBUG:
-        print(f"  Sample Date value: {data['Date'].iloc[0]}")
-        print(f"  Sample Start Time value: {data['Start Time'].iloc[0]}")
-
-    try:
-        # First try direct approach with string operations
-        datetime_strings = []
-        for i in range(len(data)):
-            try:
-                row_date_str = str(data["Date"].iloc[i])
-                time_str = str(data["Start Time"].iloc[i])
-                if (
-                    row_date_str != "nan"
-                    and time_str != "nan"
-                    and row_date_str != "NaT"
-                    and time_str != "NaT"
-                ):
-                    datetime_strings.append(f"{row_date_str} {time_str}")
-                else:
-                    datetime_strings.append(np.nan)
-            except (ValueError, KeyError, IndexError) as e:
-                if DEBUG:
-                    print(f"  Error with row {i}: {str(e)}")
-                datetime_strings.append(np.nan)
-
-        data["datetime"] = pd.to_datetime(datetime_strings, errors="coerce")
-
-        # If all values are NaT, try alternative approach
-        if data["datetime"].isna().all():
-            print("  First datetime conversion approach failed, trying alternative...")
-
-            # Try to convert Date to datetime first
-            data["Date"] = pd.to_datetime(data["Date"], errors="coerce")
-
-            # If Start Time is already a time object, convert to string
-            if pd.api.types.is_datetime64_dtype(data["Start Time"]):
-                data["Start Time"] = data["Start Time"].dt.strftime("%H:%M:%S")
-
-            # For each row with a valid Date, combine with Start Time
-            data["datetime"] = pd.NaT
-            valid_dates = ~data["Date"].isna()
-
-            if valid_dates.any():
-                date_strings = data.loc[valid_dates, "Date"].dt.strftime("%Y-%m-%d")
-                data.loc[valid_dates, "datetime"] = pd.to_datetime(
-                    date_strings + " " + data.loc[valid_dates, "Start Time"],
-                    errors="coerce",
-                )
-    except (ValueError, TypeError, KeyError) as e:
-        print(f"  Error in datetime conversion: {str(e)}")
-        traceback.print_exc()
-
-    # Print stats on the new datetime column
-    valid_dt_count = (~data["datetime"].isna()).sum()
-    total_count = len(data)
-    print(f"  Created {valid_dt_count}/{total_count} valid datetime values")
-
-    return data
-
-
-def calculate_time_since_garage_closed(df, datetime_column, garage_closed_time):
-    """
-    Calculate the time since garage closed for each row in the dataframe.
-
-    Parameters:
-    -----------
-    df : DataFrame
-        DataFrame containing data with datetime column
-    datetime_column : str
-        Name of the datetime column to use for calculation
-    garage_closed_time : datetime
-        Datetime when garage was closed
-
-    Returns:
-    --------
-    DataFrame
-        DataFrame with added 'Time Since Garage Closed (hours)' column
-    """
-    # If garage_closed_time is None, return the original dataframe
-    if garage_closed_time is None:
-        return df
-
-    # Create a copy to avoid SettingWithCopyWarning
-    df = df.copy()
-
-    # Ensure datetime column is properly formatted
-    df[datetime_column] = pd.to_datetime(df[datetime_column])
-
-    # Make datetime timezone-naive if it has timezone info
-    if (
-        hasattr(df[datetime_column].dtype, "tz")
-        and df[datetime_column].dtype.tz is not None
-    ):
-        df[datetime_column] = df[datetime_column].dt.tz_localize(None)
-
-    # Calculate time since garage closed in hours
-    df["Time Since Garage Closed (hours)"] = (
-        df[datetime_column] - garage_closed_time
-    ).dt.total_seconds() / 3600
-
-    # Verify calculation with debug info
-    if DEBUG:
-        time_stats = df["Time Since Garage Closed (hours)"].describe()
-        print(
-            f"  Time Since Garage Closed range: {time_stats['min']:.2f} to {time_stats['max']:.2f} hours"
-        )
-
-        # Check if we have values in the visible range (-1 to 4 hours)
-        visible_count = (
-            (df["Time Since Garage Closed (hours)"] >= -1)
-            & (df["Time Since Garage Closed (hours)"] <= 4)
-        ).sum()
-        total_count = len(df)
-        print(
-            f"  Points in visible range (-1 to 4 hours): {visible_count}/{total_count} ({visible_count/total_count*100:.1f}%)"
-        )
-
-    return df
-
-
-def calculate_rolling_average_burn3(data, datetime_column):
-    """
-    Calculate 5-minute rolling average for burn3 data.
-
-    Parameters:
-    -----------
-    data : DataFrame
-        DataFrame containing burn3 data
-    datetime_column : str
-        Name of the datetime column to use as index for rolling average
-
-    Returns:
-    --------
-    DataFrame
-        DataFrame with rolling averages for numeric columns
-    """
-    if data.empty:
-        print("No data available for burn 3.")
-        return data
-
-    # Set datetime column as the index for rolling average calculation
-    data_indexed = data.set_index(datetime_column)
-
-    # Initialize a dictionary to hold the results
-    rolling_avg_data = {}
-
-    # Columns to calculate rolling averages (numeric only)
-    numeric_columns = data_indexed.select_dtypes(include=[np.number]).columns
-
-    # Calculate rolling averages for numeric columns
-    for col in numeric_columns:
-        rolling_avg_data[col] = (
-            data_indexed[col]
-            .rolling(pd.Timedelta(minutes=5))
-            .mean()
-            .astype(data_indexed[col].dtype)
-        )
-
-    # For status columns, keep the first value
-    rolling_status_columns = ["Flow Status", "Instrument Status", "Laser Status"]
-    for col in rolling_status_columns:
-        if col in data_indexed.columns:
-            rolling_avg_data[col] = data_indexed[col].iloc[0]
-
-    # Create a new DataFrame with rolling averages and status values
-    rolling_avg_df = pd.DataFrame(rolling_avg_data, index=data_indexed.index)
-
-    # Reset index to bring datetime column back as a column
-    rolling_avg_df.reset_index(inplace=True)
-
-    return rolling_avg_df
-
-
-def split_data_by_nan(df, x_col, y_col):
-    """
-    Split data into segments where NaN values occur to prevent lines connecting across gaps.
-
-    Parameters:
-    -----------
-    df : DataFrame
-        DataFrame containing the data
-    x_col : str
-        Column name for x values
-    y_col : str
-        Column name for y values
-
-    Returns:
-    --------
-    list
-        List of (x_segment, y_segment) tuples
-    """
-    # Drop rows with NaN in either column
-    valid_data = df.dropna(subset=[x_col, y_col])
-
-    if valid_data.empty:
-        return []
-
-    # Sort by x values
-    valid_data = valid_data.sort_values(by=x_col)
-
-    # Get values as numpy arrays
-    x = valid_data[x_col].values
-    y = valid_data[y_col].values
-
-    # Check for large gaps in x values
-    # (This helps prevent lines connecting distant points)
-    dx = np.diff(x)
-    gap_threshold = 0.1  # 6 minutes gap threshold (in hours)
-    gap_indices = np.where(dx > gap_threshold)[0]
-
-    # Split at gap indices
-    segments = []
-    start_idx = 0
-
-    for gap_idx in gap_indices:
-        segments.append((x[start_idx : gap_idx + 1], y[start_idx : gap_idx + 1]))
-        start_idx = gap_idx + 1
-
-    # Add the final segment
-    if start_idx < len(x):
-        segments.append((x[start_idx:], y[start_idx:]))
-
-    return segments
-
-
-def create_figure(title):
-    """
-    Create a standardized figure for particle count plots.
-
-    Parameters:
-    -----------
-    title : str
-        Title for the figure
-
-    Returns:
-    --------
-    bokeh.plotting.figure
-        Configured figure object
-    """
-    tooltips = [("X", "$x{0.2f} h"), ("Y", "$y{0.2f} (#/cm³)")]
-
-    p = figure(
-        title=title,
-        x_axis_label="Time Since Garage Closed (hours)",
-        y_axis_label="Particulate Matter Particle Count (#/cm³)",
-        x_axis_type="linear",  # Using time since garage closed
-        y_axis_type="log",
-        width=800,  # Same as in Update5 script
-        height=600,  # Same as in Update5 script
-        tooltips=tooltips,
-        tools="pan,hover,box_zoom,wheel_zoom,reset,save",
-    )
-
-    # Set y-axis limits from comparison script
-    p.y_range = Range1d(1e-4, 1e5)
-
-    # Set x-axis range to match Update5 script (-1 to 4 hours)
-    p.x_range = Range1d(-1, 4)
-
-    # Improve grid appearance
-    p.xgrid.grid_line_color = "lightgray"
-    p.xgrid.grid_line_alpha = 0.6
-    p.ygrid.grid_line_color = "lightgray"
-    p.ygrid.grid_line_alpha = 0.6
-
-    return p
-
-
 # %% Load burn log
 print("Loading burn log...")
 burn_log_path = get_common_file('burn_log')
-burn_log = pd.read_excel(burn_log_path, sheet_name="Sheet2")
+burn_log = load_burn_log(burn_log_path)
 
-# Create dictionary to store garage closed times for each burn
-garage_closed_times = {}
-cr_box_hours = {}
-
-for burn_number in burn_numbers:
-    burn_date_row = burn_log[burn_log["Burn ID"] == burn_number]
-    if not burn_date_row.empty:
-        burn_date = pd.to_datetime(burn_date_row["Date"].iloc[0])
-
-        # Get garage closed time
-        garage_closed_time_str = burn_date_row["garage closed"].iloc[0]
-        if pd.notna(garage_closed_time_str):
-            garage_closed_time = pd.to_datetime(
-                f"{burn_date.strftime('%Y-%m-%d')} {garage_closed_time_str}"
-            )
-            garage_closed_times[burn_number] = garage_closed_time
-
-        # Get CR Box activation time
-        cr_box_on_time_str = burn_date_row["CR Box on"].iloc[0]
-        if pd.notna(cr_box_on_time_str):
-            cr_box_on_time = pd.to_datetime(
-                f"{burn_date.strftime('%Y-%m-%d')} {cr_box_on_time_str}"
-            )
-            # Calculate hours since garage closed for CR box activation
-            if burn_number in garage_closed_times:
-                cr_box_hours[burn_number] = (
-                    cr_box_on_time - garage_closed_times[burn_number]
-                ).total_seconds() / 3600
+# Get garage closed times and CR Box activation times
+garage_closed_times = get_garage_closed_times(burn_log, burn_numbers)
+cr_box_hours = get_cr_box_times(burn_log, burn_numbers, relative_to_garage=True)
 
 # %% Process AeroTrak data
 aerotrak_data = {"Bedroom": {}, "Kitchen": {}}
@@ -498,213 +142,48 @@ aerotrak_data = {"Bedroom": {}, "Kitchen": {}}
 if "AeroTrak" in selected_instruments:
     print("\nProcessing AeroTrak data...")
 
-    # Load bedroom AeroTrak data
     aerotrak_b_path = get_instrument_path('aerotrak_bedroom') / 'all_data.xlsx'
     aerotrak_k_path = get_instrument_path('aerotrak_kitchen') / 'all_data.xlsx'
 
     # Process Bedroom AeroTrak
-    try:
-        print("Loading AeroTrakB data...")
-        aerotrak_b_data = pd.read_excel(aerotrak_b_path)
-        aerotrak_b_data.columns = aerotrak_b_data.columns.str.strip()
-
-        # Define size channels and initialize a dictionary for size values
-        size_channels = ["Ch1", "Ch2", "Ch3", "Ch4", "Ch5", "Ch6"]
-        size_values = {}
-
-        # Extract size values for each channel (from first row)
-        for channel in size_channels:
-            size_col = f"{channel} Size (µm)"
-            if size_col in aerotrak_b_data.columns:
-                size_value = aerotrak_b_data[size_col].iloc[0]
-                if pd.notna(size_value):
-                    size_values[channel] = size_value
-
-        # Process each burn
-        for burn_number in burn_numbers:
-            burn_date_row = burn_log[burn_log["Burn ID"] == burn_number]
-            if burn_date_row.empty:
-                continue
-
+    print("Loading AeroTrakB data...")
+    for burn_number in burn_numbers:
+        burn_date_row = burn_log[burn_log["Burn ID"] == burn_number]
+        if not burn_date_row.empty:
             burn_date = pd.to_datetime(burn_date_row["Date"].iloc[0])
+            garage_time = garage_closed_times.get(burn_number)
 
-            # Filter data for this burn
-            aerotrak_b_data["Date"] = pd.to_datetime(
-                aerotrak_b_data["Date and Time"]
-            ).dt.date
-            filtered_data = aerotrak_b_data[
-                aerotrak_b_data["Date"] == burn_date.date()
-            ].copy()
-
-            if filtered_data.empty:
-                print(f"No AeroTrakB data for {burn_number}")
-                continue
-
-            # Apply time shift
-            filtered_data = apply_time_shift(
-                filtered_data, "AeroTrakB", "Date and Time"
+            filtered_data = process_aerotrak_data(
+                aerotrak_b_path,
+                instrument="AeroTrakB",
+                burn_date=burn_date,
+                garage_closed_time=garage_time,
+                burn_number=burn_number,
             )
 
-            # Calculate time since garage closed
-            if burn_number in garage_closed_times:
-                filtered_data = calculate_time_since_garage_closed(
-                    filtered_data, "Date and Time", garage_closed_times[burn_number]
-                )
-
-                # Apply rolling average for burn3
-                if burn_number == "burn3":
-                    filtered_data = calculate_rolling_average_burn3(
-                        filtered_data, "Date and Time"
-                    )
-
-                # Check instrument status columns and remove rows with invalid status
-                status_columns = ["Flow Status", "Laser Status"]
-                valid_status = (filtered_data[status_columns] == "OK").all(axis=1)
-                filtered_data.loc[
-                    ~valid_status,
-                    filtered_data.select_dtypes(include=[np.number]).columns,
-                ] = np.nan
-
-                # Convert Diff counts to #/cm³
-                volume_column = "Volume (L)"
-                if volume_column in filtered_data.columns:
-                    filtered_data["Volume (cm³)"] = (
-                        filtered_data[volume_column] * 1000
-                    )  # Convert to cm³
-
-                    # Process each channel
-                    for i, channel in enumerate(size_channels):
-                        if channel in size_values:
-                            # Get next channel's size value
-                            next_channel = (
-                                size_channels[i + 1]
-                                if i < len(size_channels) - 1
-                                else None
-                            )
-                            next_size_value = size_values.get(
-                                next_channel, 25
-                            )  # Default to 25 if no next channel
-
-                            diff_col = f"{channel} Diff (#)"
-                            if diff_col in filtered_data.columns:
-                                # Create new column for particle count density
-                                new_col_name = f"Ʃ{size_values[channel]}-{next_size_value}µm (#/cm³)"
-                                filtered_data[new_col_name] = (
-                                    filtered_data[diff_col]
-                                    / filtered_data["Volume (cm³)"]
-                                )
-
-                # Store processed data
+            if not filtered_data.empty:
                 aerotrak_data["Bedroom"][burn_number] = filtered_data
-                print(
-                    f"  Processed AeroTrakB data for {burn_number}: {len(filtered_data)} records"
-                )
-
-    except (FileNotFoundError, pd.errors.ParserError, KeyError) as e:
-        print(f"Error processing AeroTrakB data: {str(e)}")
-        traceback.print_exc()
+                print(f"  Processed AeroTrakB: {burn_number} ({len(filtered_data)} records)")
 
     # Process Kitchen AeroTrak
-    try:
-        print("Loading AeroTrakK data...")
-        aerotrak_k_data = pd.read_excel(aerotrak_k_path)
-        aerotrak_k_data.columns = aerotrak_k_data.columns.str.strip()
-
-        # Define size channels and initialize a dictionary for size values
-        size_channels = ["Ch1", "Ch2", "Ch3", "Ch4", "Ch5", "Ch6"]
-        size_values = {}
-
-        # Extract size values for each channel (from first row)
-        for channel in size_channels:
-            size_col = f"{channel} Size (µm)"
-            if size_col in aerotrak_k_data.columns:
-                size_value = aerotrak_k_data[size_col].iloc[0]
-                if pd.notna(size_value):
-                    size_values[channel] = size_value
-
-        # Process each burn
-        for burn_number in burn_numbers:
-            burn_date_row = burn_log[burn_log["Burn ID"] == burn_number]
-            if burn_date_row.empty:
-                continue
-
+    print("Loading AeroTrakK data...")
+    for burn_number in burn_numbers:
+        burn_date_row = burn_log[burn_log["Burn ID"] == burn_number]
+        if not burn_date_row.empty:
             burn_date = pd.to_datetime(burn_date_row["Date"].iloc[0])
+            garage_time = garage_closed_times.get(burn_number)
 
-            # Filter data for this burn
-            aerotrak_k_data["Date"] = pd.to_datetime(
-                aerotrak_k_data["Date and Time"]
-            ).dt.date
-            filtered_data = aerotrak_k_data[
-                aerotrak_k_data["Date"] == burn_date.date()
-            ].copy()
-
-            if filtered_data.empty:
-                print(f"No AeroTrakK data for {burn_number}")
-                continue
-
-            # Apply time shift
-            filtered_data = apply_time_shift(
-                filtered_data, "AeroTrakK", "Date and Time"
+            filtered_data = process_aerotrak_data(
+                aerotrak_k_path,
+                instrument="AeroTrakK",
+                burn_date=burn_date,
+                garage_closed_time=garage_time,
+                burn_number=burn_number,
             )
 
-            # Calculate time since garage closed
-            if burn_number in garage_closed_times:
-                filtered_data = calculate_time_since_garage_closed(
-                    filtered_data, "Date and Time", garage_closed_times[burn_number]
-                )
-
-                # Apply rolling average for burn3
-                if burn_number == "burn3":
-                    filtered_data = calculate_rolling_average_burn3(
-                        filtered_data, "Date and Time"
-                    )
-
-                # Check instrument status columns and remove rows with invalid status
-                status_columns = ["Flow Status", "Laser Status"]
-                valid_status = (filtered_data[status_columns] == "OK").all(axis=1)
-                filtered_data.loc[
-                    ~valid_status,
-                    filtered_data.select_dtypes(include=[np.number]).columns,
-                ] = np.nan
-
-                # Convert Diff counts to #/cm³
-                volume_column = "Volume (L)"
-                if volume_column in filtered_data.columns:
-                    filtered_data["Volume (cm³)"] = (
-                        filtered_data[volume_column] * 1000
-                    )  # Convert to cm³
-
-                    # Process each channel
-                    for i, channel in enumerate(size_channels):
-                        if channel in size_values:
-                            # Get next channel's size value
-                            next_channel = (
-                                size_channels[i + 1]
-                                if i < len(size_channels) - 1
-                                else None
-                            )
-                            next_size_value = size_values.get(
-                                next_channel, 25
-                            )  # Default to 25 if no next channel
-
-                            diff_col = f"{channel} Diff (#)"
-                            if diff_col in filtered_data.columns:
-                                # Create new column for particle count density
-                                new_col_name = f"Ʃ{size_values[channel]}-{next_size_value}µm (#/cm³)"
-                                filtered_data[new_col_name] = (
-                                    filtered_data[diff_col]
-                                    / filtered_data["Volume (cm³)"]
-                                )
-
-                # Store processed data
+            if not filtered_data.empty:
                 aerotrak_data["Kitchen"][burn_number] = filtered_data
-                print(
-                    f"  Processed AeroTrakK data for {burn_number}: {len(filtered_data)} records"
-                )
-
-    except (FileNotFoundError, pd.errors.ParserError, KeyError) as e:
-        print(f"Error processing AeroTrakK data: {str(e)}")
-        traceback.print_exc()
+                print(f"  Processed AeroTrakK: {burn_number} ({len(filtered_data)} records)")
 
 # %% Process QuantAQ data
 quantaq_data = {"Bedroom": {}, "Kitchen": {}}
@@ -712,191 +191,52 @@ quantaq_data = {"Bedroom": {}, "Kitchen": {}}
 if "QuantAQ" in selected_instruments:
     print("\nProcessing QuantAQ data...")
 
-    # Determine which burns have QuantAQ data
-    quantaq_burns = [
-        burn for burn in burn_numbers if burn not in ["burn1", "burn2", "burn3"]
-    ]
+    # Get valid burns for QuantAQ (burns 4-10)
+    quantaq_burns = [b for b in burn_numbers if b in get_burn_range_for_instrument('QuantAQB')]
 
     if quantaq_burns:
-        # Load QuantAQ data for bedroom and kitchen
         quantaq_b_path = get_instrument_path('quantaq_bedroom') / 'MOD-PM-00194-b0fc215029fa4852b926bc50b28fda5a.csv'
         quantaq_k_path = get_instrument_path('quantaq_kitchen') / 'MOD-PM-00197-a6dd467a147a4d95a7b98a8a10ab4ea3.csv'
 
         # Process Bedroom QuantAQ
-        try:
-            print("Loading QuantAQB data...")
-            quantaq_b_data = pd.read_csv(quantaq_b_path)
-
-            # Convert timestamp to datetime
-            quantaq_b_data["timestamp_local"] = pd.to_datetime(
-                quantaq_b_data["timestamp_local"]
-                .str.replace("T", " ")
-                .str.replace("Z", ""),
-                errors="coerce",
-            ).dt.tz_localize(None)
-
-            # Sort data by timestamp (ascending)
-            quantaq_b_data = quantaq_b_data.sort_values(by="timestamp_local")
-
-            # Process each burn
-            for burn_number in quantaq_burns:
-                burn_date_row = burn_log[burn_log["Burn ID"] == burn_number]
-                if burn_date_row.empty:
-                    continue
-
+        print("Loading QuantAQB data...")
+        for burn_number in quantaq_burns:
+            burn_date_row = burn_log[burn_log["Burn ID"] == burn_number]
+            if not burn_date_row.empty:
                 burn_date = pd.to_datetime(burn_date_row["Date"].iloc[0])
-                burn_date_only = pd.Timestamp(burn_date).date()
+                garage_time = garage_closed_times.get(burn_number)
 
-                # Filter data for this burn
-                quantaq_b_data["Date"] = quantaq_b_data["timestamp_local"].dt.date
-                filtered_data = quantaq_b_data[
-                    quantaq_b_data["Date"] == burn_date_only
-                ].copy()
-
-                if filtered_data.empty:
-                    print(f"No QuantAQB data for {burn_number}")
-                    continue
-
-                # Apply time shift
-                filtered_data = apply_time_shift(
-                    filtered_data, "QuantAQB", "timestamp_local"
+                filtered_data = process_quantaq_data(
+                    quantaq_b_path,
+                    instrument="QuantAQB",
+                    burn_date=burn_date,
+                    garage_closed_time=garage_time,
+                    sum_bins=True,
                 )
 
-                # Calculate time since garage closed
-                if burn_number in garage_closed_times:
-                    filtered_data = calculate_time_since_garage_closed(
-                        filtered_data,
-                        "timestamp_local",
-                        garage_closed_times[burn_number],
-                    )
-
-                    # Define the bins to be summed
-                    bins = {
-                        "Ʃ0.35-0.66µm (#/cm³)": ["bin0", "bin1"],
-                        "Ʃ0.66-1.0µm (#/cm³)": ["bin2"],
-                        "Ʃ1.0-3.0µm (#/cm³)": ["bin3", "bin4", "bin5", "bin6"],
-                        "Ʃ3.0-5.2µm (#/cm³)": ["bin7", "bin8"],
-                        "Ʃ5.2-10µm (#/cm³)": ["bin9", "bin10", "bin11"],
-                        "Ʃ10-20µm (#/cm³)": [
-                            "bin12",
-                            "bin13",
-                            "bin14",
-                            "bin15",
-                            "bin16",
-                        ],
-                        "Ʃ20-40µm (#/cm³)": [
-                            "bin17",
-                            "bin18",
-                            "bin19",
-                            "bin20",
-                            "bin21",
-                            "bin22",
-                            "bin23",
-                        ],
-                    }
-
-                    # Sum the specified bins and create new columns
-                    for new_col, bin_list in bins.items():
-                        if all(bin in filtered_data.columns for bin in bin_list):
-                            filtered_data[new_col] = filtered_data[bin_list].sum(axis=1)
-
-                    # Store processed data
+                if not filtered_data.empty:
                     quantaq_data["Bedroom"][burn_number] = filtered_data
-                    print(
-                        f"  Processed QuantAQB data for {burn_number}: {len(filtered_data)} records"
-                    )
-
-        except (FileNotFoundError, pd.errors.ParserError, KeyError) as e:
-            print(f"Error processing QuantAQB data: {str(e)}")
-            traceback.print_exc()
+                    print(f"  Processed QuantAQB: {burn_number} ({len(filtered_data)} records)")
 
         # Process Kitchen QuantAQ
-        try:
-            print("Loading QuantAQK data...")
-            quantaq_k_data = pd.read_csv(quantaq_k_path)
-
-            # Convert timestamp to datetime
-            quantaq_k_data["timestamp_local"] = pd.to_datetime(
-                quantaq_k_data["timestamp_local"]
-                .str.replace("T", " ")
-                .str.replace("Z", ""),
-                errors="coerce",
-            ).dt.tz_localize(None)
-
-            # Sort data by timestamp (ascending)
-            quantaq_k_data = quantaq_k_data.sort_values(by="timestamp_local")
-
-            # Process each burn
-            for burn_number in quantaq_burns:
-                burn_date_row = burn_log[burn_log["Burn ID"] == burn_number]
-                if burn_date_row.empty:
-                    continue
-
+        print("Loading QuantAQK data...")
+        for burn_number in quantaq_burns:
+            burn_date_row = burn_log[burn_log["Burn ID"] == burn_number]
+            if not burn_date_row.empty:
                 burn_date = pd.to_datetime(burn_date_row["Date"].iloc[0])
-                burn_date_only = pd.Timestamp(burn_date).date()
+                garage_time = garage_closed_times.get(burn_number)
 
-                # Filter data for this burn
-                quantaq_k_data["Date"] = quantaq_k_data["timestamp_local"].dt.date
-                filtered_data = quantaq_k_data[
-                    quantaq_k_data["Date"] == burn_date_only
-                ].copy()
-
-                if filtered_data.empty:
-                    print(f"No QuantAQK data for {burn_number}")
-                    continue
-
-                # Apply time shift
-                filtered_data = apply_time_shift(
-                    filtered_data, "QuantAQK", "timestamp_local"
+                filtered_data = process_quantaq_data(
+                    quantaq_k_path,
+                    instrument="QuantAQK",
+                    burn_date=burn_date,
+                    garage_closed_time=garage_time,
+                    sum_bins=True,
                 )
 
-                # Calculate time since garage closed
-                if burn_number in garage_closed_times:
-                    filtered_data = calculate_time_since_garage_closed(
-                        filtered_data,
-                        "timestamp_local",
-                        garage_closed_times[burn_number],
-                    )
-
-                    # Define the bins to be summed
-                    bins = {
-                        "Ʃ0.35-0.66µm (#/cm³)": ["bin0", "bin1"],
-                        "Ʃ0.66-1.0µm (#/cm³)": ["bin2"],
-                        "Ʃ1.0-3.0µm (#/cm³)": ["bin3", "bin4", "bin5", "bin6"],
-                        "Ʃ3.0-5.2µm (#/cm³)": ["bin7", "bin8"],
-                        "Ʃ5.2-10µm (#/cm³)": ["bin9", "bin10", "bin11"],
-                        "Ʃ10-20µm (#/cm³)": [
-                            "bin12",
-                            "bin13",
-                            "bin14",
-                            "bin15",
-                            "bin16",
-                        ],
-                        "Ʃ20-40µm (#/cm³)": [
-                            "bin17",
-                            "bin18",
-                            "bin19",
-                            "bin20",
-                            "bin21",
-                            "bin22",
-                            "bin23",
-                        ],
-                    }
-
-                    # Sum the specified bins and create new columns
-                    for new_col, bin_list in bins.items():
-                        if all(bin in filtered_data.columns for bin in bin_list):
-                            filtered_data[new_col] = filtered_data[bin_list].sum(axis=1)
-
-                    # Store processed data
+                if not filtered_data.empty:
                     quantaq_data["Kitchen"][burn_number] = filtered_data
-                    print(
-                        f"  Processed QuantAQK data for {burn_number}: {len(filtered_data)} records"
-                    )
-
-        except (FileNotFoundError, pd.errors.ParserError, KeyError) as e:
-            print(f"Error processing QuantAQK data: {str(e)}")
-            traceback.print_exc()
+                    print(f"  Processed QuantAQK: {burn_number} ({len(filtered_data)} records)")
 
 # %% Process SMPS data
 smps_data = {}
@@ -906,176 +246,27 @@ if "SMPS" in selected_instruments:
 
     for burn_number in burn_numbers:
         burn_date_row = burn_log[burn_log["Burn ID"] == burn_number]
-        if burn_date_row.empty:
-            continue
+        if not burn_date_row.empty:
+            burn_date = pd.to_datetime(burn_date_row["Date"].iloc[0])
+            date_str = burn_date.strftime("%m%d%Y")
+            SMPS_FILENAME = f"MH_apollo_bed_{date_str}_numConc.xlsx"
+            smps_path = get_instrument_path('smps') / SMPS_FILENAME
 
-        burn_date = pd.to_datetime(burn_date_row["Date"].iloc[0])
+            if smps_path.exists():
+                garage_time = garage_closed_times.get(burn_number)
 
-        # Format date for SMPS filename
-        date_str = burn_date.strftime("%m%d%Y")
-        smps_filename = f"MH_apollo_bed_{date_str}_numConc.xlsx"
-        smps_path = get_instrument_path('smps') / smps_filename
-
-        try:
-            # Check if file exists
-            if not smps_path.exists():
-                print(f"No SMPS data file for {burn_number}: {smps_path}")
-                continue
-
-            print(f"Loading SMPS data for {burn_number}...")
-
-            # Load SMPS data - try both sheet names
-            try:
-                smps_raw_data = pd.read_excel(smps_path, sheet_name="all_data")
-            except (ValueError, KeyError):
-                try:
-                    smps_raw_data = pd.read_excel(smps_path, sheet_name="sheet1")
-                except (ValueError, KeyError):
-                    # Default to first sheet
-                    smps_raw_data = pd.read_excel(smps_path)
-
-            # Enhanced debug info about SMPS data
-            if DEBUG:
-                print(f"\n  SMPS raw data for {burn_number}:")
-                print(f"  Shape: {smps_raw_data.shape}")
-                print(f"  First few columns: {smps_raw_data.columns[:5].tolist()}")
-                print(f"  Column types: {smps_raw_data.dtypes.head()}")
-
-            # Check for structured data vs transpose needed
-            if (
-                "Date" not in smps_raw_data.columns
-                or "Start Time" not in smps_raw_data.columns
-            ):
-                # Data might be transposed, try extracting from first row
-                if (
-                    isinstance(smps_raw_data.iloc[0].values, np.ndarray)
-                    and "Date" in smps_raw_data.iloc[0].values
-                    and "Start Time" in smps_raw_data.iloc[0].values
-                ):
-                    print(
-                        f"  SMPS data appears to be transposed for {burn_number}, fixing..."
-                    )
-                    smps_raw_data = smps_raw_data.transpose()
-                    smps_raw_data.columns = smps_raw_data.iloc[0].values
-                    smps_raw_data = smps_raw_data.iloc[1:].reset_index(drop=True)
-
-            # Drop the 'Total Concentration(#/cm³)' column if it exists
-            if "Total Concentration(#/cm³)" in smps_raw_data.columns:
-                smps_raw_data.drop(columns=["Total Concentration(#/cm³)"], inplace=True)
-
-            # Print sample values before conversion
-            if DEBUG:
-                print(f"\n  SMPS data sample for {burn_number} before conversion:")
-                print(f"  Date column type: {smps_raw_data['Date'].dtype}")
-                print(f"  Start Time column type: {smps_raw_data['Start Time'].dtype}")
-                print(f"  Sample Date values: {smps_raw_data['Date'].head(3).tolist()}")
-                print(
-                    f"  Sample Start Time values: {smps_raw_data['Start Time'].head(3).tolist()}"
+                filtered_data = process_smps_data(
+                    smps_path,
+                    garage_closed_time=garage_time,
+                    sum_ranges=True,
+                    debug=DEBUG,
                 )
 
-            # Fix SMPS datetime using the new function
-            smps_raw_data = fix_smps_datetime(smps_raw_data)
-
-            # Apply time shift
-            smps_raw_data = apply_time_shift(smps_raw_data, "SMPS", "datetime")
-
-            # Calculate time since garage closed
-            if burn_number in garage_closed_times:
-                smps_raw_data = calculate_time_since_garage_closed(
-                    smps_raw_data, "datetime", garage_closed_times[burn_number]
-                )
-
-                # Define bin ranges - using same ranges as update5 script
-                bin_ranges = [(9, 100), (100, 200), (200, 300), (300, 437)]
-
-                # Sum columns based on specified ranges
-                for start, end in bin_ranges:
-                    # Identify columns that can be converted to float
-                    numeric_cols = []
-                    for col in smps_raw_data.columns:
-                        try:
-                            val = float(col)
-                            if start <= val <= end:
-                                numeric_cols.append(col)
-                        except (ValueError, TypeError):
-                            continue
-
-                    if numeric_cols:
-                        # Add diagnostic info about the numeric columns being summed
-                        if DEBUG:
-                            print(
-                                f"  Range {start}-{end}nm has {len(numeric_cols)} columns"
-                            )
-
-                        # Create the summed column
-                        bin_column_name = f"Ʃ{start}-{end}nm (#/cm³)"
-                        smps_raw_data[bin_column_name] = smps_raw_data[
-                            numeric_cols
-                        ].sum(axis=1)
-
-                        # Add diagnostic info about the summed column
-                        if DEBUG:
-                            stats = smps_raw_data[bin_column_name].describe()
-                            print(
-                                f"  Stats for {bin_column_name}: min={stats['min']:.2f}, mean={stats['mean']:.2f}, max={stats['max']:.2f}"
-                            )
-                            print(
-                                f"  NaN count: {smps_raw_data[bin_column_name].isna().sum()}/{len(smps_raw_data)}"
-                            )
-
-                # Print debug info about SMPS data
-                particle_cols = [
-                    col
-                    for col in smps_raw_data.columns
-                    if isinstance(col, str) and "(#/cm³)" in col
-                ]
-                print(f"  SMPS bin columns for {burn_number}: {particle_cols}")
-
-                # More detailed diagnostic info
-                if DEBUG:
-                    print(f"\n  SMPS Data Quality Check for {burn_number}:")
-
-                    # Check if there are any negative values in the particle columns
-                    for col in particle_cols:
-                        neg_count = (smps_raw_data[col] < 0).sum()
-                        if neg_count > 0:
-                            print(f"    Warning: {col} has {neg_count} negative values")
-
-                    # Check if Time Since Garage Closed has good distribution
-                    time_col = "Time Since Garage Closed (hours)"
-                    if time_col in smps_raw_data.columns:
-                        time_range = smps_raw_data[time_col].describe()
-                        print(
-                            f"    {time_col} stats: min={time_range['min']:.2f}, 25%={time_range['25%']:.2f}, "
-                            f"median={time_range['50%']:.2f}, 75%={time_range['75%']:.2f}, max={time_range['max']:.2f}"
-                        )
-
-                    # Print sample data rows
-                    try:
-                        print("\n    Sample rows (first few):")
-                        sample_columns = [
-                            "Time Since Garage Closed (hours)"
-                        ] + particle_cols
-                        sample_data = smps_raw_data[sample_columns].head()
-                        for _, row in sample_data.iterrows():
-                            print(
-                                f"      Time: {row[time_col]:.2f}h, Values: "
-                                + ", ".join(
-                                    [f"{col}={row[col]:.2f}" for col in particle_cols]
-                                )
-                            )
-                    except (ValueError, KeyError, IndexError) as e:
-                        print(f"    Error printing sample rows: {str(e)}")
-
-                # Store processed data (SMPS is always in bedroom)
-                smps_data[burn_number] = smps_raw_data
-                print(
-                    f"  Processed SMPS data for {burn_number}: {len(smps_raw_data)} records"
-                )
-
-        except (FileNotFoundError, pd.errors.ParserError, KeyError) as e:
-            print(f"Error processing SMPS data for {burn_number}: {str(e)}")
-            traceback.print_exc()
+                if not filtered_data.empty:
+                    smps_data[burn_number] = filtered_data
+                    print(f"  Processed SMPS: {burn_number} ({len(filtered_data)} records)")
+            else:
+                print(f"  No SMPS file for {burn_number}")
 
 
 # %% Create plots for each burn
@@ -1126,7 +317,12 @@ def create_plots_for_burn(burn_number):
     if bedroom_data:
         # Create bedroom figure
         bedroom_title = f"{burn_number.upper()} Bedroom Particle Count Comparison"
-        p_bedroom = create_figure(bedroom_title)
+        p_bedroom = create_standard_figure(
+            bedroom_title,
+            y_axis_label="Particulate Matter Particle Count (#/cm³)",
+            x_range=(-1, 4),
+            y_range=(1e-4, 1e5),
+        )
 
         # Process and plot each instrument's data
         for instrument_name, instrument_data in bedroom_data.items():
@@ -1349,55 +545,23 @@ def create_plots_for_burn(burn_number):
                         )
                         continue
 
-        # Add vertical lines and text
-        p_bedroom.line(
-            x=[0, 0],
-            y=[1e-4, 1e5],
-            line_color="black",
-            line_width=2,
-            legend_label="Garage Closed",
-            line_dash="solid",
-        )
-        p_bedroom.text(
-            x=[0],
-            y=[1e-1],
-            text=["Garage Closed"],
-            text_align="right",
-            text_baseline="middle",
-            text_color="black",
-            text_font_size="10pt",
-        )
-
+        # Add event markers
+        events = {}
+        if burn_number in garage_closed_times:
+            events['Garage Closed'] = 0
         if burn_number in cr_box_hours:
-            p_bedroom.line(
-                x=[cr_box_hours[burn_number], cr_box_hours[burn_number]],
-                y=[1e-4, 1e5],
-                line_color="black",
-                line_width=2,
-                legend_label="CR Boxes On",
-                line_dash="dashed",
-            )
-            p_bedroom.text(
-                x=[cr_box_hours[burn_number]],
-                y=[1e-2],
-                text=["CR Boxes On"],
-                text_align="left",
-                text_baseline="middle",
-                text_color="black",
-                text_font_size="10pt",
-            )
+            events['CR Boxes On'] = cr_box_hours[burn_number]
+        add_event_markers(p_bedroom, events, y_range=(1e-4, 1e5))
 
-        # Configure the legend
-        p_bedroom.legend.location = "top_right"
-        p_bedroom.legend.click_policy = "hide"
-        p_bedroom.legend.background_fill_alpha = 0.7
+        # Configure legend
+        configure_legend(p_bedroom, location='top_right', click_policy='hide')
 
         # Add metadata
         metadata = get_script_metadata()
         bedroom_instruments_list = list(bedroom_data.keys())
         instruments_str = ", ".join(bedroom_instruments_list)
-        bedroom_info_div = Div(
-            text=f"<p><b>{burn_number.upper()} Bedroom</b> | Instruments: {instruments_str}<br>"
+        bedroom_info_div = create_metadata_div(
+            f"<p><b>{burn_number.upper()} Bedroom</b> | Instruments: {instruments_str}<br>"
             f"<small>{metadata}</small></p>",
             width=800,
         )
@@ -1422,7 +586,12 @@ def create_plots_for_burn(burn_number):
     if kitchen_data:
         # Create kitchen figure
         kitchen_title = f"{burn_number.upper()} Kitchen Particle Count Comparison"
-        p_kitchen = create_figure(kitchen_title)
+        p_kitchen = create_standard_figure(
+            kitchen_title,
+            y_axis_label="Particulate Matter Particle Count (#/cm³)",
+            x_range=(-1, 4),
+            y_range=(1e-4, 1e5),
+        )
 
         # Plot each kitchen instrument
         for instrument_name, instrument_data in kitchen_data.items():
@@ -1490,55 +659,23 @@ def create_plots_for_burn(burn_number):
                             )
                         # line_dash='solid' if instrument_name == 'AeroTrak' else 'dashed')
 
-        # Add vertical lines and text
-        p_kitchen.line(
-            x=[0, 0],
-            y=[1e-4, 1e5],
-            line_color="black",
-            line_width=2,
-            legend_label="Garage Closed",
-            line_dash="solid",
-        )
-        p_kitchen.text(
-            x=[0],
-            y=[1e-1],
-            text=["Garage Closed"],
-            text_align="right",
-            text_baseline="middle",
-            text_color="black",
-            text_font_size="10pt",
-        )
-
+        # Add event markers
+        events = {}
+        if burn_number in garage_closed_times:
+            events['Garage Closed'] = 0
         if burn_number in cr_box_hours:
-            p_kitchen.line(
-                x=[cr_box_hours[burn_number], cr_box_hours[burn_number]],
-                y=[1e-4, 1e5],
-                line_color="black",
-                line_width=2,
-                legend_label="CR Boxes On",
-                line_dash="dashed",
-            )
-            p_kitchen.text(
-                x=[cr_box_hours[burn_number]],
-                y=[1e-2],
-                text=["CR Boxes On"],
-                text_align="left",
-                text_baseline="middle",
-                text_color="black",
-                text_font_size="10pt",
-            )
+            events['CR Boxes On'] = cr_box_hours[burn_number]
+        add_event_markers(p_kitchen, events, y_range=(1e-4, 1e5))
 
-        # Configure the legend
-        p_kitchen.legend.location = "top_right"
-        p_kitchen.legend.click_policy = "hide"
-        p_kitchen.legend.background_fill_alpha = 0.7
+        # Configure legend
+        configure_legend(p_kitchen, location='top_right', click_policy='hide')
 
         # Add metadata
         metadata = get_script_metadata()
         kitchen_instruments_list = list(kitchen_data.keys())
         instruments_str = ", ".join(kitchen_instruments_list)
-        kitchen_info_div = Div(
-            text=f"<p><b>{burn_number.upper()} Kitchen</b> | Instruments: {instruments_str}<br>"
+        kitchen_info_div = create_metadata_div(
+            f"<p><b>{burn_number.upper()} Kitchen</b> | Instruments: {instruments_str}<br>"
             f"<small>{metadata}</small></p>",
             width=800,
         )
