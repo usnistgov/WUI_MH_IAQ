@@ -422,8 +422,8 @@ def create_spatial_variation_plot(
 
         # Process each instrument separately (different marker shapes)
         for device_data, device_name in [
-            (aerotrak_data, "AeroTrak"),
-            (quantaq_data, "QuantAQ"),
+            (aerotrak_data, "OPC"),
+            (quantaq_data, "Nef+OPC"),
         ]:
             if device_data.empty:
                 continue
