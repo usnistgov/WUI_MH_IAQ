@@ -176,7 +176,7 @@ def add_reference_line_with_error(plot):
     label = Label(
         x=0,
         y=REFERENCE_CADR,
-        text=f"ASTM WK81750 Rate: {REFERENCE_CADR} ± {REFERENCE_ERROR} m³/h",
+        text=f"ASTM D8625 Rate: {REFERENCE_CADR} ± {REFERENCE_ERROR} m³/h",
         text_color="black",
         text_font_style="bold",
         x_offset=10,
