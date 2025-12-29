@@ -62,8 +62,11 @@ script_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(script_dir)
 sys.path.insert(0, parent_dir)
 
+# pylint: disable=import-error,wrong-import-position
 from src.data_paths import get_data_root, get_common_file
 from scripts import get_script_metadata
+from scripts.plotting_utils import apply_text_formatting
+# pylint: enable=import-error,wrong-import-position
 
 # Get portable paths
 BASE_DIR = str(get_data_root())
@@ -100,9 +103,10 @@ RATIO_DISPLAY_NAMES = {
 }
 
 # Marker mapping for instruments (each instrument gets a unique marker)
+# Note: device_name values are "OPC" (AeroTrak) and "Nef+OPC" (QuantAQ)
 INSTRUMENT_MARKERS = {
-    "AeroTrak": "circle",
-    "QuantAQ": "square",
+    "OPC": "circle",
+    "Nef+OPC": "square",
 }
 
 # PM sizes to create plots for (QuantAQ sizes)
@@ -411,6 +415,9 @@ def create_spatial_variation_plot(
         height=600,
     )
 
+    # Apply standard text formatting configuration
+    apply_text_formatting(p)
+
     # Track fit info
     fit_info = {}
 
@@ -477,7 +484,7 @@ def create_spatial_variation_plot(
                 color=ratio_color,
                 marker=marker,
                 size=10,
-                alpha=0.7,
+                alpha=1.0,
                 legend_label=f"{ratio_display} - {device_name}",
             )
 
@@ -510,14 +517,17 @@ def create_spatial_variation_plot(
                 # Create smooth curve for visualization (now works for 2+ points)
                 x_fit, y_fit = create_fitted_curve(x_sorted, y_sorted)
                 if x_fit is not None and y_fit is not None:
+                    # Determine line dash style based on device (AeroTrak: dashed, QuantAQ: dashdot)
+                    line_dash_style = "dashed" if device_name == "OPC" else "dotdash"
+                    
                     # Plot fit line WITHOUT adding to legend
                     p.line(
                         x_fit,
                         y_fit,
                         color=ratio_color,
                         line_width=2,
-                        alpha=0.3,
-                        line_dash="dashed",
+                        alpha=1.0,
+                        line_dash=line_dash_style,
                     )
                 else:
                     # Even if curve visualization fails, we still have fit_info stored above
@@ -544,7 +554,7 @@ def create_spatial_variation_plot(
         line_color="black",
         line_dash="dotted",
         line_width=1,
-        line_alpha=0.5,
+        line_alpha=1.0,
     )
     p.add_layout(uniform_line)
 
