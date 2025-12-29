@@ -74,8 +74,11 @@ script_dir = Path(__file__).parent
 repo_root = script_dir.parent
 sys.path.insert(0, str(repo_root))
 
+# pylint: disable=import-error,wrong-import-position
 from src.data_paths import get_data_root, get_common_file
-from scripts import get_script_metadata  # pylint: disable=import-error,wrong-import-position
+from scripts import get_script_metadata  
+from scripts.plotting_utils import apply_text_formatting 
+# pylint: enable=import-error,wrong-import-position
 
 # Configuration constants - using portable paths
 data_root = get_data_root()
@@ -215,6 +218,9 @@ def create_base_figure(x_labels, chart_title=""):
     p.yaxis.axis_label = "CADR per CR box (m³/h)"
     p.yaxis.formatter = NumeralTickFormatter(format="0")
     p.xaxis.major_label_orientation = "horizontal"
+
+    # Apply standard text formatting configuration
+    apply_text_formatting(p)
 
     return p
 
