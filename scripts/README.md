@@ -204,6 +204,48 @@ df = process_aerotrak_data(
 
 ---
 
+### 7. `spatial_analysis_utils.py` (NEW - Added 2025-12-23)
+Spatial variability analysis functions for multi-location measurements.
+
+**Key Functions:**
+- `calculate_peak_ratio(peak_data, burn_id, instrument_pair, pm_size)` - Calculate Peak Ratio Index between locations
+- `calculate_event_time_ratio(data1, data2, event_time, pm_size, ...)` - Concentration ratio at specific event time
+- `calculate_average_ratio_and_rsd(data1, data2, start_time, pm_size, ...)` - Time-averaged ratio and RSD
+- `calculate_crbox_activation_ratio(bedroom_data, morning_data, burn_id, ...)` - CR Box activation ratio (convenience wrapper)
+
+**Example Usage:**
+```python
+from scripts.spatial_analysis_utils import (
+    calculate_peak_ratio,
+    calculate_event_time_ratio
+)
+
+# Calculate peak ratio from peak concentration data
+peak_df = pd.read_excel('peak_concentrations.xlsx')
+peak_ratio = calculate_peak_ratio(
+    peak_df,
+    burn_id='burn4',
+    instrument_pair='AeroTrak',
+    pm_size='PM2.5 (µg/m³)'
+)
+print(f"Peak Ratio Index: {peak_ratio:.2f}")
+
+# Calculate ratio at specific event time
+event_time = pd.Timestamp('2024-01-15 12:30:00')
+event_ratio = calculate_event_time_ratio(
+    bedroom_data,
+    morning_data,
+    event_time,
+    pm_size='PM2.5 (µg/m³)',
+    datetime_col_1='Date and Time',
+    datetime_col_2='Date and Time',
+    burn_date=pd.to_datetime('2024-01-15').date()
+)
+print(f"Event Time Ratio: {event_ratio:.2f}")
+```
+
+---
+
 ## Installation / Setup
 
 These modules are designed to be imported from the `scripts/` directory. Ensure your analysis scripts include the repository root in the Python path:

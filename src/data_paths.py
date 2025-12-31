@@ -13,7 +13,7 @@ import json
 from pathlib import Path
 import socket
 import sys
-from typing import List, Optional
+from typing import List
 
 
 class WUIDataPathResolver:
@@ -30,12 +30,12 @@ class WUIDataPathResolver:
         if not self.config_file.exists():
             error_msg = f"""
 ╔════════════════════════════════════════════════════════════════╗
-║  ❌ DATA CONFIGURATION NOT FOUND                              ║
+║  DATA CONFIGURATION NOT FOUND                                  ║
 ╚════════════════════════════════════════════════════════════════╝
 
 Configuration file missing: {self.config_file}
 
-📋 SETUP INSTRUCTIONS:
+SETUP INSTRUCTIONS:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Step 1: Copy the template to create your local config
@@ -88,7 +88,7 @@ Step 4: Run setup verification
             print(f"[OK] Loaded WUI data config for: {config.get('machine_name', 'unknown')}")
             return config
         except json.JSONDecodeError as e:
-            raise ValueError(f"Invalid JSON in {self.config_file}: {e}")
+            raise ValueError(f"Invalid JSON in {self.config_file}: {e}") from e
 
     def get_instrument_path(self, instrument: str) -> Path:
         """
@@ -125,11 +125,11 @@ Step 4: Run setup verification
 
         if not path.exists():
             print(f"[WARNING] Instrument path does not exist: {path}", file=sys.stderr)
-            print(f"          Create folder or update path in data_config.json", file=sys.stderr)
+            print("          Create folder or update path in data_config.json", file=sys.stderr)
 
         return path
 
-    def get_instrument_files(self, instrument: str, pattern: str = None) -> List[Path]:
+    def get_instrument_files(self, instrument: str, pattern: str | None = None) -> List[Path]:
         """
         Get all data files for an instrument.
 
@@ -154,13 +154,13 @@ Step 4: Run setup verification
         """
         inst_path = self.get_instrument_path(instrument)
 
-        if pattern is None:
-            pattern = self.config['instruments'][instrument].get('file_pattern', '*.*')
+        # Get pattern from config if not provided
+        search_pattern = pattern if pattern is not None else self.config['instruments'][instrument].get('file_pattern', '*.*')
 
-        files = sorted(inst_path.glob(pattern))
+        files = sorted(inst_path.glob(search_pattern))
 
         if not files:
-            print(f"[WARNING] No files found matching '{pattern}' in {inst_path}", file=sys.stderr)
+            print(f"[WARNING] No files found matching '{search_pattern}' in {inst_path}", file=sys.stderr)
 
         return files
 
@@ -194,8 +194,8 @@ Step 4: Run setup verification
 
     def list_instruments(self):
         """Print all configured instruments and their status."""
-        print(f"\n" + "="*100)
-        print(f"  WUI Research Data Configuration")
+        print("\n" + "="*100)
+        print("WUI Research Data Configuration")
         print("="*100)
         print(f"\nMachine: {self.machine_name}")
         print(f"Config:  {self.config_file}")
@@ -255,7 +255,7 @@ def get_instrument_path(instrument: str) -> Path:
     return resolver.get_instrument_path(instrument)
 
 
-def get_instrument_files(instrument: str, pattern: str = None) -> List[Path]:
+def get_instrument_files(instrument: str, pattern: str | None = None) -> List[Path]:
     """Get all data files for an instrument."""
     return resolver.get_instrument_files(instrument, pattern)
 
