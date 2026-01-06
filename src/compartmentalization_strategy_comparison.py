@@ -61,7 +61,6 @@ Date: 2024-2025
 
 # %%
 # Standard library imports
-import datetime
 import os
 import sys
 from pathlib import Path
@@ -82,7 +81,7 @@ sys.path.insert(0, str(repo_root))
 # Local application imports
 from scripts import get_script_metadata  # noqa: E402
 from scripts.datetime_utils import create_naive_datetime  # noqa: E402
-from scripts.plotting_utils import TEXT_CONFIG, apply_text_formatting  # noqa: E402
+from scripts.plotting_utils import TEXT_CONFIG  # noqa: E402
 from src.data_paths import get_common_file, get_instrument_path  # noqa: E402
 
 # Set output to display plots in the notebook
@@ -134,7 +133,7 @@ INSTRUMENT_CONFIG = {
         "special_cases": {},
     },
     "DustTrak": {
-        "file_path": "./burn_data/dusttrak/all_data.xlsx",
+        "file_path": str(get_instrument_path("dusttrak") / "all_data.xlsx"),
         "process_function": "process_dusttrak_data",
         "time_shift": 7,
         "plot_pollutants": ["PM1 (µg/m³)", "PM2.5 (µg/m³)", "PM10 (µg/m³)"],
@@ -144,7 +143,7 @@ INSTRUMENT_CONFIG = {
         },
     },
     "PurpleAirK": {
-        "file_path": "./burn_data/purpleair/garage-kitchen.xlsx",
+        "file_path": str(get_instrument_path("purpleair") / "garage-kitchen.xlsx"),
         "process_function": "process_purpleairk_data",
         "time_shift": 0,
         "plot_pollutants": ["PM2.5 (µg/m³)"],
@@ -176,7 +175,7 @@ INSTRUMENT_CONFIG = {
         "special_cases": {},
     },
     "SMPS": {
-        "file_path": "./burn_data/smps",
+        "file_path": str(get_instrument_path("smps")),
         "process_function": "process_smps_data",
         "time_shift": 0,
         "plot_pollutants": ["Total Concentration (µg/m³)"],
@@ -310,13 +309,13 @@ def process_aerotrak_data(file_path, instrument="AeroTrakB"):
             )
 
             # Ensure timezone-naive datetime
-            if hasattr(datetime_values, "dt") and datetime_values.dt.tz is not None:
-                datetime_values = datetime_values.dt.tz_localize(None)
+            if hasattr(datetime_values, "dt") and datetime_values.dt.tz is not None:  # type: ignore
+                datetime_values = datetime_values.dt.tz_localize(None)  # type: ignore
 
             # Calculate hours since garage closed
             time_since_closed = (
                 datetime_values - garage_closed_time
-            ).dt.total_seconds() / 3600
+            ).dt.total_seconds() / 3600  # type: ignore
             filtered_data.loc[
                 matching_rows.index, "Time Since Garage Closed (hours)"
             ] = time_since_closed
@@ -391,12 +390,12 @@ def process_dusttrak_data(file_path):
                 errors="coerce",
             )
 
-            if hasattr(datetime_values, "dt") and datetime_values.dt.tz is not None:
-                datetime_values = datetime_values.dt.tz_localize(None)
+            if hasattr(datetime_values, "dt") and datetime_values.dt.tz is not None:  # type: ignore
+                datetime_values = datetime_values.dt.tz_localize(None)  # type: ignore
 
             time_since_closed = (
                 datetime_values - garage_closed_time
-            ).dt.total_seconds() / 3600
+            ).dt.total_seconds() / 3600  # type: ignore
             filtered_data.loc[
                 matching_rows.index, "Time Since Garage Closed (hours)"
             ] = time_since_closed
@@ -451,12 +450,12 @@ def process_purpleairk_data(file_path):
                 errors="coerce",
             )
 
-            if hasattr(datetime_values, "dt") and datetime_values.dt.tz is not None:
-                datetime_values = datetime_values.dt.tz_localize(None)
+            if hasattr(datetime_values, "dt") and datetime_values.dt.tz is not None:  # type: ignore
+                datetime_values = datetime_values.dt.tz_localize(None)  # type: ignore
 
             time_since_closed = (
                 datetime_values - garage_closed_time
-            ).dt.total_seconds() / 3600
+            ).dt.total_seconds() / 3600  # type: ignore
             filtered_data.loc[
                 matching_rows.index, "Time Since Garage Closed (hours)"
             ] = time_since_closed
@@ -489,9 +488,9 @@ def process_quantaq_data(file_path, instrument):
     figure4_burn_dates = burn_log[burn_log["Burn ID"].isin(figure4_burn_ids)]["Date"]
     figure4_burn_dates = pd.to_datetime(figure4_burn_dates)
 
-    quantaq_data["Date"] = quantaq_data["timestamp_local"].dt.date
+    quantaq_data["Date"] = quantaq_data["timestamp_local"].dt.date  # type: ignore
     filtered_data = quantaq_data[
-        quantaq_data["Date"].isin(figure4_burn_dates.dt.date)
+        quantaq_data["Date"].isin(figure4_burn_dates.dt.date)  # type: ignore
     ].copy()
 
     # Apply time shifts and calculate time since garage closed
@@ -881,7 +880,7 @@ def calculate_decay_parameters(data, instrument):
                         burn_info["Date"].iloc[0], garage_closed_time_str
                     )
                     cr_box_on_time_since_garage_closed = (
-                        cr_box_on_time - garage_closed_time
+                        cr_box_on_time - garage_closed_time  # type: ignore
                     ).total_seconds() / 3600
                     decay_start_time = max(
                         decay_start_time, cr_box_on_time_since_garage_closed
@@ -1018,9 +1017,9 @@ def calculate_decay_parameters(data, instrument):
     return decay_parameters
 
 
-def plot_figure4_raw_data(data, instrument, output_to_file=False):
+def plot_SMPScleanerairspace_data(data, instrument, output_to_file=False):
     """
-    Create Figure 4: Raw concentration data with decay analysis for compartmentalization strategies
+    Create SMPS cleaner airspace plot: Raw concentration data with decay analysis for compartmentalization strategies
 
     This function generates a log-scale plot showing how different compartmentalization strategies
     affect indoor air quality over time, with exponential decay curve fitting and maximum concentration callouts.
@@ -1049,7 +1048,9 @@ def plot_figure4_raw_data(data, instrument, output_to_file=False):
     reset_output()
 
     if output_to_file:
-        output_file(f"./Paper_figures/{instrument}_cleanerairspace.html")
+        output_dir = get_common_file("output_figures")
+        os.makedirs(output_dir, exist_ok=True)
+        output_file(str(output_dir / f"{instrument}_cleanerairspace.html"))
     else:
         output_notebook()
 
@@ -1208,8 +1209,34 @@ def plot_figure4_raw_data(data, instrument, output_to_file=False):
         line_color="black",
         line_width=1.5,
         line_dash="solid",
-        legend_label="Garage Closed",
     )
+
+    # Add "Garage Closed" callout arrow pointing to vertical line at 10^-1
+    garage_label = Label(
+        x=0.22,
+        y=10**-1 * 1.5,
+        text="Garage Closed",
+        text_font_size=TEXT_CONFIG.get("label_font_size", "12pt"),
+        text_font_style="normal",
+        text_color="black",
+        border_line_color=None,
+        background_fill_color="white",
+        background_fill_alpha=0.6,
+    )
+    p.add_layout(garage_label)
+
+    garage_arrow = Arrow(
+        end=NormalHead(
+            size=10,
+            fill_color="black",
+            line_color="black",
+        ),
+        x_start=0.2,
+        y_start=10**-1 * 1.5,
+        x_end=0,
+        y_end=10**-1,
+    )
+    p.add_layout(garage_arrow)
 
     # Add metadata with consistent text formatting
     text_div = Div(
@@ -1245,7 +1272,7 @@ def main(instrument="SMPS", output_to_file=False):
 
     if data is not None and not data.empty:
         # Generate Figure 4 with decay analysis
-        plot_figure4_raw_data(data, instrument, output_to_file)
+        plot_SMPScleanerairspace_data(data, instrument, output_to_file)
         print("\nPlotting complete.")
 
         # Print instrument-specific information
