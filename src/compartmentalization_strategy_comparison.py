@@ -60,49 +60,36 @@ Date: 2024-2025
 """
 
 # %%
-import os
-import pandas as pd
-import numpy as np
+# Standard library imports
 import datetime
-from bokeh.plotting import figure, show
-from bokeh.io import output_notebook, output_file, reset_output
-from bokeh.models import ColumnDataSource, Div, Label, Arrow, NormalHead
-from bokeh.layouts import column
-
+import os
 import sys
 from pathlib import Path
+
+# Third-party imports
+import numpy as np
+import pandas as pd
+from bokeh.io import output_file, output_notebook, reset_output
+from bokeh.layouts import column
+from bokeh.models import Arrow, ColumnDataSource, Div, Label, NormalHead, Range1d
+from bokeh.plotting import figure, show
 
 # Add repository root to path for portable data access
 script_dir = Path(__file__).parent
 repo_root = script_dir.parent
 sys.path.insert(0, str(repo_root))
 
-from src.data_paths import get_data_root, get_instrument_path, get_common_file
-
+# Local application imports
+from scripts import get_script_metadata  # noqa: E402
+from scripts.datetime_utils import create_naive_datetime  # noqa: E402
+from scripts.plotting_utils import TEXT_CONFIG, apply_text_formatting  # noqa: E402
+from src.data_paths import get_common_file, get_instrument_path  # noqa: E402
 
 # Set output to display plots in the notebook
 output_notebook()
 
-# Load text formatting configuration
-TEXT_CONFIG = {
-    "font_size": "12pt",
-    "title_font_size": "12pt",
-    "axis_label_font_size": "12pt",
-    "axis_tick_font_size": "12pt",
-    "legend_font_size": "12pt",
-    "label_font_size": "12pt",
-    "font_style": "normal",
-    "plot_font_style": "bold",  # For Bokeh plot elements
-    "html_font_weight": "normal",  # For HTML div elements
-}
-
-# Path configuration now handled by portable data_paths module
-# Old system detection code removed - using get_data_root() instead
-
-os.chdir(str(data_root))
-
 # Load burn log for reference data
-burn_log = pd.read_excel(str(get_common_file('burn_log')), sheet_name="Sheet2")
+burn_log = pd.read_excel(str(get_common_file("burn_log")), sheet_name="Sheet2")
 
 # Global variables for decay parameters (calculated during processing)
 decay_parameters = {}
@@ -129,7 +116,7 @@ POLLUTANT_COLORS = {
 # Instrument configurations - contains all processing parameters for each instrument
 INSTRUMENT_CONFIG = {
     "AeroTrakB": {
-        "file_path": str(get_instrument_path('aerotrak_bedroom') / 'all_data.xlsx'),
+        "file_path": str(get_instrument_path("aerotrak_bedroom") / "all_data.xlsx"),
         "process_function": "process_aerotrak_data",
         "time_shift": 2.16,  # Minutes to shift timestamps for synchronization
         "plot_pollutants": ["PM1 (µg/m³)", "PM3 (µg/m³)", "PM10 (µg/m³)"],
@@ -139,7 +126,7 @@ INSTRUMENT_CONFIG = {
         },
     },
     "AeroTrakK": {
-        "file_path": str(get_instrument_path('aerotrak_kitchen') / 'all_data.xlsx'),
+        "file_path": str(get_instrument_path("aerotrak_kitchen") / "all_data.xlsx"),
         "process_function": "process_aerotrak_data",
         "time_shift": 5,
         "plot_pollutants": ["PM1 (µg/m³)", "PM3 (µg/m³)", "PM10 (µg/m³)"],
@@ -165,7 +152,10 @@ INSTRUMENT_CONFIG = {
         "special_cases": {},
     },
     "QuantAQB": {
-        "file_path": str(get_instrument_path('quantaq_bedroom') / 'MOD-PM-00194-b0fc215029fa4852b926bc50b28fda5a.csv'),
+        "file_path": str(
+            get_instrument_path("quantaq_bedroom")
+            / "MOD-PM-00194-b0fc215029fa4852b926bc50b28fda5a.csv"
+        ),
         "process_function": "process_quantaq_data",
         "time_shift": -2.97,
         "plot_pollutants": ["PM1 (µg/m³)", "PM2.5 (µg/m³)", "PM10 (µg/m³)"],
@@ -175,7 +165,10 @@ INSTRUMENT_CONFIG = {
         },
     },
     "QuantAQK": {
-        "file_path": str(get_instrument_path('quantaq_kitchen') / 'MOD-PM-00197-a6dd467a147a4d95a7b98a8a10ab4ea3.csv'),
+        "file_path": str(
+            get_instrument_path("quantaq_kitchen")
+            / "MOD-PM-00197-a6dd467a147a4d95a7b98a8a10ab4ea3.csv"
+        ),
         "process_function": "process_quantaq_data",
         "time_shift": 0,
         "plot_pollutants": ["PM1 (µg/m³)", "PM2.5 (µg/m³)", "PM10 (µg/m³)"],
@@ -210,61 +203,6 @@ BURN_LABELS = {
     "burn5": "Sealed Door, HVAC Sealed",
     "burn6": "Sealed Door, HVAC Sealed, Air Cleaner On",
 }
-
-
-def get_text_config():
-    """Return the text formatting configuration"""
-    return TEXT_CONFIG
-
-
-def apply_text_formatting(plot_object):
-    """Apply consistent text formatting to a Bokeh plot object"""
-    # Apply axis label formatting
-    plot_object.xaxis.axis_label_text_font_size = TEXT_CONFIG["axis_label_font_size"]
-    plot_object.yaxis.axis_label_text_font_size = TEXT_CONFIG["axis_label_font_size"]
-    plot_object.xaxis.axis_label_text_font_style = TEXT_CONFIG["font_style"]
-    plot_object.yaxis.axis_label_text_font_style = TEXT_CONFIG["font_style"]
-
-    # Apply tick label formatting
-    plot_object.xaxis.major_label_text_font_size = TEXT_CONFIG["axis_tick_font_size"]
-    plot_object.yaxis.major_label_text_font_size = TEXT_CONFIG["axis_tick_font_size"]
-    plot_object.xaxis.major_label_text_font_style = TEXT_CONFIG["font_style"]
-    plot_object.yaxis.major_label_text_font_style = TEXT_CONFIG["font_style"]
-
-    # Apply legend formatting only if legend items exist
-    if hasattr(plot_object, "legend") and len(plot_object.legend) > 0:
-        plot_object.legend.label_text_font_size = TEXT_CONFIG["legend_font_size"]
-        plot_object.legend.label_text_font_style = TEXT_CONFIG["font_style"]
-
-    # Apply title formatting if title exists
-    if hasattr(plot_object, "title") and plot_object.title:
-        plot_object.title.text_font_size = TEXT_CONFIG["title_font_size"]
-        plot_object.title.text_font_style = TEXT_CONFIG["font_style"]
-
-    return plot_object
-
-
-def get_script_metadata():
-    """Generate metadata string with script name and execution timestamp"""
-    try:
-        import inspect
-
-        script_name = os.path.basename(
-            inspect.getmodule(inspect.currentframe()).__file__
-        )
-    except (NameError, AttributeError, TypeError):
-        script_name = "wui_compartmentalization_strategy_comparison_v3.0.py"
-
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    return f"Generated by: {script_name} | Date: {timestamp}"
-
-
-def create_naive_datetime(date_str, time_str):
-    """Create a timezone-naive datetime object from date and time strings"""
-    dt = pd.to_datetime(f"{date_str} {time_str}", errors="coerce")
-    if hasattr(dt, "tz") and dt.tz is not None:
-        dt = dt.tz_localize(None)
-    return dt
 
 
 def fit_exponential_curve(x_data, y_data, initial_guess):
@@ -367,14 +305,12 @@ def process_aerotrak_data(file_path, instrument="AeroTrakB"):
             datetime_values = pd.to_datetime(
                 filtered_data.loc[
                     filtered_data["Date"] == burn_date.date(), "Date and Time"
-                ]
+                ],
+                errors="coerce",
             )
 
             # Ensure timezone-naive datetime
-            if (
-                hasattr(datetime_values.dtype, "tz")
-                and datetime_values.dtype.tz is not None
-            ):
+            if hasattr(datetime_values, "dt") and datetime_values.dt.tz is not None:
                 datetime_values = datetime_values.dt.tz_localize(None)
 
             # Calculate hours since garage closed
@@ -449,13 +385,13 @@ def process_dusttrak_data(file_path):
 
         if not matching_rows.empty:
             datetime_values = pd.to_datetime(
-                filtered_data.loc[filtered_data["Date"] == burn_date.date(), "datetime"]
+                filtered_data.loc[
+                    filtered_data["Date"] == burn_date.date(), "datetime"
+                ],
+                errors="coerce",
             )
 
-            if (
-                hasattr(datetime_values.dtype, "tz")
-                and datetime_values.dtype.tz is not None
-            ):
+            if hasattr(datetime_values, "dt") and datetime_values.dt.tz is not None:
                 datetime_values = datetime_values.dt.tz_localize(None)
 
             time_since_closed = (
@@ -509,13 +445,13 @@ def process_purpleairk_data(file_path):
 
         if not matching_rows.empty:
             datetime_values = pd.to_datetime(
-                filtered_data.loc[filtered_data["Date"] == burn_date.date(), "DateTime"]
+                filtered_data.loc[
+                    filtered_data["Date"] == burn_date.date(), "DateTime"
+                ],
+                errors="coerce",
             )
 
-            if (
-                hasattr(datetime_values.dtype, "tz")
-                and datetime_values.dtype.tz is not None
-            ):
+            if hasattr(datetime_values, "dt") and datetime_values.dt.tz is not None:
                 datetime_values = datetime_values.dt.tz_localize(None)
 
             time_since_closed = (
@@ -583,22 +519,22 @@ def process_quantaq_data(file_path, instrument):
         matching_rows = filtered_data[filtered_data["Date"] == burn_date.date()]
 
         if not matching_rows.empty:
-            datetime_values = filtered_data.loc[
-                filtered_data["Date"] == burn_date.date(), "timestamp_local"
-            ]
+            # Get datetime values for matching dates
+            mask = filtered_data["Date"] == burn_date.date()
 
-            if (
-                hasattr(datetime_values.dtype, "tz")
-                and datetime_values.dtype.tz is not None
-            ):
-                datetime_values = datetime_values.dt.tz_localize(None)
+            # Ensure timezone-naive datetime
+            datetime_series = filtered_data.loc[mask, "timestamp_local"]  # type: ignore
+            if hasattr(datetime_series, "dt"):
+                if datetime_series.dt.tz is not None:  # type: ignore
+                    datetime_series = datetime_series.dt.tz_localize(None)  # type: ignore
 
-            time_since_closed = (
-                datetime_values - garage_closed_time
-            ).dt.total_seconds() / 3600
-            filtered_data.loc[
-                matching_rows.index, "Time Since Garage Closed (hours)"
-            ] = time_since_closed
+                # Calculate time difference
+                time_since_closed = (
+                    datetime_series - garage_closed_time
+                ).dt.total_seconds() / 3600  # type: ignore
+                filtered_data.loc[mask, "Time Since Garage Closed (hours)"] = (
+                    time_since_closed
+                )
 
     return filtered_data
 
@@ -670,9 +606,9 @@ def process_smps_data(file_path):
             # Create combined datetime column
             try:
                 smps_data["datetime"] = pd.to_datetime(
-                    smps_data["Date"].dt.strftime("%Y-%m-%d")
+                    smps_data["Date"].dt.strftime("%Y-%m-%d")  # type: ignore
                     + " "
-                    + smps_data["Start Time"].dt.strftime("%H:%M:%S"),
+                    + smps_data["Start Time"].dt.strftime("%H:%M:%S"),  # type: ignore
                     errors="coerce",
                 )
             except Exception as e:
@@ -727,7 +663,7 @@ def process_smps_data(file_path):
                 result_df = pd.DataFrame(
                     {
                         "datetime": smps_data["datetime"],
-                        "Date": smps_data["datetime"].dt.date,
+                        "Date": smps_data["datetime"].dt.date,  # type: ignore
                         "burn_id": burn_id,
                         "Total Concentration (µg/m³)": pd.to_numeric(
                             smps_data["Total Concentration (µg/m³)"], errors="coerce"
@@ -778,19 +714,16 @@ def process_smps_data(file_path):
                 if not any(burn_mask):
                     continue
 
-                burn_datetime = combined_smps_data.loc[burn_mask, "datetime"]
+                burn_datetime = combined_smps_data.loc[burn_mask, "datetime"]  # type: ignore
 
                 # Ensure timezone-naive datetime
-                if (
-                    hasattr(burn_datetime.dtype, "tz")
-                    and burn_datetime.dtype.tz is not None
-                ):
-                    burn_datetime = burn_datetime.dt.tz_localize(None)
+                if hasattr(burn_datetime, "dt") and burn_datetime.dt.tz is not None:  # type: ignore
+                    burn_datetime = burn_datetime.dt.tz_localize(None)  # type: ignore
 
                 # Calculate hours since garage closed
                 combined_smps_data.loc[
                     burn_mask, "Time Since Garage Closed (hours)"
-                ] = (burn_datetime - garage_closed_time).dt.total_seconds() / 3600
+                ] = (burn_datetime - garage_closed_time).dt.total_seconds() / 3600  # type: ignore
 
             except Exception as e:
                 print(f"Error calculating garage closed time for {burn_id}: {str(e)}")
@@ -1107,7 +1040,7 @@ def plot_figure4_raw_data(data, instrument, output_to_file=False):
         calculate_decay_parameters(data, instrument)
 
     # Ensure output directory exists
-    os.makedirs(str(get_common_file('output_figures')), exist_ok=True)
+    os.makedirs(str(get_common_file("output_figures")), exist_ok=True)
 
     config = INSTRUMENT_CONFIG[instrument]
     pollutants = config["plot_pollutants"]
@@ -1136,23 +1069,20 @@ def plot_figure4_raw_data(data, instrument, output_to_file=False):
         y_axis_type="log",
         width=900,
         height=500,
-        y_range=(10**-1.2, 10**3),
+        y_range=Range1d(10**-1.2, 10**3),
+        x_range=Range1d(-1, 4),
         toolbar_location="right",
     )
 
     # Apply initial text formatting (everything except legend)
-    p.xaxis.axis_label_text_font_size = TEXT_CONFIG["axis_label_font_size"]
-    p.yaxis.axis_label_text_font_size = TEXT_CONFIG["axis_label_font_size"]
-    p.xaxis.axis_label_text_font_style = TEXT_CONFIG["font_style"]
-    p.yaxis.axis_label_text_font_style = TEXT_CONFIG["font_style"]
-    p.xaxis.major_label_text_font_size = TEXT_CONFIG["axis_tick_font_size"]
-    p.yaxis.major_label_text_font_size = TEXT_CONFIG["axis_tick_font_size"]
-    p.xaxis.major_label_text_font_style = TEXT_CONFIG["font_style"]
-    p.yaxis.major_label_text_font_style = TEXT_CONFIG["font_style"]
-
-    # Set x-axis range to show pre- and post-closure periods
-    p.x_range.start = -1
-    p.x_range.end = 4
+    p.xaxis.axis_label_text_font_size = TEXT_CONFIG.get("axis_label_font_size", "14pt")
+    p.yaxis.axis_label_text_font_size = TEXT_CONFIG.get("axis_label_font_size", "14pt")
+    p.xaxis.axis_label_text_font_style = "normal"
+    p.yaxis.axis_label_text_font_style = "normal"
+    p.xaxis.major_label_text_font_size = TEXT_CONFIG.get("axis_tick_font_size", "12pt")
+    p.yaxis.major_label_text_font_size = TEXT_CONFIG.get("axis_tick_font_size", "12pt")
+    p.xaxis.major_label_text_font_style = "normal"
+    p.yaxis.major_label_text_font_style = "normal"
 
     # Process each burn scenario
     for burn_id in burns_to_plot:
@@ -1240,8 +1170,8 @@ def plot_figure4_raw_data(data, instrument, output_to_file=False):
                 x=max_time - 0.85,
                 y=max_concentration * 1.5,
                 text=f"Max: {max_concentration:.0f} µg/m³",
-                text_font_size=TEXT_CONFIG["label_font_size"],
-                text_font_style=TEXT_CONFIG["font_style"],
+                text_font_size=TEXT_CONFIG.get("label_font_size", "12pt"),
+                text_font_style="normal",
                 text_color=BURN_STYLES[burn_id]["color"],
                 border_line_color=None,
                 background_fill_color="white",
@@ -1251,24 +1181,25 @@ def plot_figure4_raw_data(data, instrument, output_to_file=False):
 
             # Add arrow pointing to maximum
             max_arrow = Arrow(
-                end=NormalHead(size=10),
+                end=NormalHead(
+                    size=10,
+                    fill_color=BURN_STYLES[burn_id]["color"],
+                    line_color=BURN_STYLES[burn_id]["color"],
+                ),
                 x_start=max_time - 0.2,
                 y_start=max_concentration * 1.5,
                 x_end=max_time,
                 y_end=max_concentration,
-                line_color=BURN_STYLES[burn_id]["color"],
-                line_width=1.5,
             )
             p.add_layout(max_arrow)
 
     # Configure legend with consistent formatting
     p.legend.location = "top_right"
     p.legend.click_policy = "hide"
-    p.legend.label_text_font_size = TEXT_CONFIG["legend_font_size"]
-    p.legend.label_text_font_style = TEXT_CONFIG["font_style"]
+    p.legend.label_text_font_size = TEXT_CONFIG.get("legend_label_font_size", "12pt")
+    p.legend.label_text_font_style = "normal"
     p.legend.background_fill_alpha = 0.7
     p.legend.spacing = 5
-    p.legend.padding = 10
 
     # Add vertical line at Time = 0 (garage door closure)
     p.line(
@@ -1282,7 +1213,7 @@ def plot_figure4_raw_data(data, instrument, output_to_file=False):
 
     # Add metadata with consistent text formatting
     text_div = Div(
-        text=f'<div style="font-size: {TEXT_CONFIG["font_size"]}; font-weight: {TEXT_CONFIG["html_font_weight"]};">{metadata}</div>',
+        text=f'<div style="font-size: 12pt; font-weight: normal;">{metadata}</div>',
         width=800,
     )
     layout = column(p, text_div)
@@ -1302,9 +1233,6 @@ def main(instrument="SMPS", output_to_file=False):
     """
     print(f"Starting Figure 4 Raw Concentration Analysis for {instrument}")
     print(f"Output to file: {output_to_file}")
-
-    # Get text configuration at startup
-    get_text_config()
 
     # Validate instrument selection
     if instrument not in INSTRUMENT_CONFIG:
