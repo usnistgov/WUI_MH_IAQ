@@ -51,9 +51,46 @@ Applications:
     - Identify room-to-room transport characteristics
     - Validate single-point measurement representativeness
 
+Utility Functions Used:
+    From scripts/datetime_utils:
+        - create_naive_datetime: Timezone-naive datetime creation from date/time strings
+        - TIME_SHIFTS: Centralized instrument time shift values
+
+    From scripts/data_filters:
+        - g_mean: Geometric mean calculation for particle sizing distributions
+
+    From scripts/data_loaders:
+        - load_burn_log: Load and parse burn log Excel file
+
+    From scripts/instrument_config:
+        - get_instrument_datetime_column: Get datetime column name per instrument
+        - get_process_pollutants: Get pollutant list per instrument
+        - get_special_cases: Get burn-specific special case configurations
+        - get_baseline_values: Get baseline correction values
+        - get_burn_range_for_instrument: Get valid burn range per instrument
+        - get_instrument_location: Get physical location of instrument
+
+    From scripts/spatial_analysis_utils:
+        - calculate_peak_ratio: Peak concentration ratio calculation between locations
+
+Refactoring Status:
+    ✓ INSTRUMENT_CONFIG now uses centralized utilities for all configuration values
+    ✓ Significantly reduced code duplication (~120 lines saved)
+    ✓ Ensures consistency with other analysis scripts
+    ✓ Easier maintenance - updates to constants propagate automatically
+
+    Custom implementations retained (with justification):
+    - apply_time_shift: Custom signature using INSTRUMENT_CONFIG lookup
+    - calculate_rolling_average_burn3: Depends on global burn_log variable
+    - calculate_crbox_activation_ratio: Depends on global burn_log variable
+    - calculate_average_ratio_and_rsd: Different signature pattern for this workflow
+
+    File paths remain script-specific as they point to processed data files.
+
 Author: Nathan Lima
 Institution: National Institute of Standards and Technology (NIST)
 Date: 2025
+Last Modified: 2025-12-23 (Migrated to use centralized utility modules)
 """
 
 import os
@@ -71,7 +108,23 @@ script_dir = Path(__file__).parent
 repo_root = script_dir.parent
 sys.path.insert(0, str(repo_root))
 
+# pylint: disable=import-error,wrong-import-position
 from src.data_paths import get_data_root, get_common_file, get_instrument_path
+
+# Import utility functions from centralized modules
+from scripts.datetime_utils import create_naive_datetime, TIME_SHIFTS
+from scripts.data_filters import g_mean
+from scripts.spatial_analysis_utils import calculate_peak_ratio
+from scripts.data_loaders import load_burn_log
+from scripts.instrument_config import (
+    get_instrument_datetime_column,
+    get_process_pollutants,
+    get_special_cases,
+    get_baseline_values,
+    get_burn_range_for_instrument,
+    get_instrument_location,
+)
+# pylint: enable=import-error,wrong-import-position
 
 # Set up portable paths
 data_root = get_data_root()
@@ -82,77 +135,51 @@ OUTPUT_PATH = str(data_root / "burn_data")
 
 # Load burn log (using portable path)
 burn_log_path = get_common_file('burn_log')
-burn_log = pd.read_excel(burn_log_path, sheet_name="Sheet2")
+burn_log = load_burn_log(burn_log_path)
 
 print(f"[OK] Data root: {data_root}")
 print(f"[OK] Output path: {OUTPUT_PATH}")
 print(f"[OK] Burn log loaded from: {burn_log_path}")
 
-# Define instrument configurations (using portable paths)
+# Define instrument configurations (using portable paths + centralized utilities)
+# Note: This builds on centralized constants from scripts/instrument_config.py
+# File paths are still script-specific as they point to processed data files
 INSTRUMENT_CONFIG = {
     "AeroTrakB": {
         "file_path": str(get_instrument_path('aerotrak_bedroom') / "all_data.xlsx"),
-        "time_shift": 2.16,
-        "process_pollutants": [
-            "PM0.5 (µg/m³)",
-            "PM1 (µg/m³)",
-            "PM3 (µg/m³)",
-            "PM5 (µg/m³)",
-            "PM10 (µg/m³)",
-            "PM25 (µg/m³)",
-        ],
-        "datetime_column": "Date and Time",
-        "location": "bedroom2",
-        "special_cases": {
-            "burn3": {"apply_rolling_average": True},
-            "burn6": {"custom_decay_time": True, "decay_end_offset": 0.25},
-        },
-        "baseline_values": {
-            "PM0.5 (µg/m³)": (0.5121, 0.0079),
-            "PM1 (µg/m³)": (0.5492, 0.0116),
-            "PM3 (µg/m³)": (1.0855, 0.0511),
-            "PM5 (µg/m³)": (2.0051, 0.0831),
-            "PM10 (µg/m³)": (2.7994, 0.1160),
-            "PM25 (µg/m³)": (3.3799, 0.1397),
-        },
+        "time_shift": TIME_SHIFTS["AeroTrakB"],
+        "process_pollutants": get_process_pollutants("AeroTrakB"),
+        "datetime_column": get_instrument_datetime_column("AeroTrakB"),
+        "location": get_instrument_location("AeroTrakB"),
+        "special_cases": get_special_cases("AeroTrakB"),
+        "baseline_values": get_baseline_values("AeroTrakB"),
     },
     "AeroTrakK": {
         "file_path": str(get_instrument_path('aerotrak_kitchen') / "all_data.xlsx"),
-        "time_shift": 5,
-        "process_pollutants": [
-            "PM0.5 (µg/m³)",
-            "PM1 (µg/m³)",
-            "PM3 (µg/m³)",
-            "PM5 (µg/m³)",
-            "PM10 (µg/m³)",
-            "PM25 (µg/m³)",
-        ],
-        "datetime_column": "Date and Time",
-        "location": "morning_room",
-        "special_cases": {},
-        "baseline_values": None,  # Will be calculated during processing
-        "baseline_method": "weighted_average",
-        "baseline_burns": ["burn5", "burn6"],
+        "time_shift": TIME_SHIFTS["AeroTrakK"],
+        "process_pollutants": get_process_pollutants("AeroTrakK"),
+        "datetime_column": get_instrument_datetime_column("AeroTrakK"),
+        "location": get_instrument_location("AeroTrakK"),
+        "special_cases": get_special_cases("AeroTrakK"),
+        "baseline_values": get_baseline_values("AeroTrakK"),
     },
     "QuantAQB": {
         "file_path": str(get_instrument_path('quantaq_bedroom') / "MOD-PM-00194-b0fc215029fa4852b926bc50b28fda5a.csv"),
-        "time_shift": -2.97,
-        "process_pollutants": ["PM1 (µg/m³)", "PM2.5 (µg/m³)", "PM10 (µg/m³)"],
-        "datetime_column": "timestamp_local",
-        "burn_range": range(4, 11),
-        "location": "bedroom2",
-        "special_cases": {
-            "burn6": {"custom_decay_time": True, "decay_end_offset": 0.25}
-        },
+        "time_shift": TIME_SHIFTS["QuantAQB"],
+        "process_pollutants": get_process_pollutants("QuantAQB"),
+        "datetime_column": get_instrument_datetime_column("QuantAQB"),
+        "burn_range": get_burn_range_for_instrument("QuantAQB"),
+        "location": get_instrument_location("QuantAQB"),
+        "special_cases": get_special_cases("QuantAQB"),
     },
     "QuantAQK": {
         "file_path": str(get_instrument_path('quantaq_kitchen') / "MOD-PM-00197-a6dd467a147a4d95a7b98a8a10ab4ea3.csv"),
-        "time_shift": 0,
-        "process_pollutants": ["PM1 (µg/m³)", "PM2.5 (µg/m³)", "PM10 (µg/m³)"],
-        "datetime_column": "timestamp_local",
-        "burn_range": range(4, 11),
-        "location": "morning_room",
-        "special_cases": {},
+        "time_shift": TIME_SHIFTS["QuantAQK"],
+        "process_pollutants": get_process_pollutants("QuantAQK"),
+        "datetime_column": get_instrument_datetime_column("QuantAQK"),
+        "burn_range": get_burn_range_for_instrument("QuantAQK"),
+        "location": get_instrument_location("QuantAQK"),
+        "special_cases": get_special_cases("QuantAQK"),
     },
 }
 
@@ -185,19 +212,26 @@ def apply_time_shift(df, instrument, burn_date):
     return df
 
 
-def create_naive_datetime(date_str, time_str):
-    """Create a timezone-naive datetime object from date and time strings"""
-    dt = pd.to_datetime(f"{date_str} {time_str}", errors="coerce")
-    if pd.isna(dt):
-        return pd.NaT
-    if hasattr(dt, "tz") and dt.tz is not None:
-        dt = dt.tz_localize(None)
-    return dt
-
-
 def filter_by_burn_dates(data, burn_range, datetime_column):
-    """Helper function to filter data by burn dates"""
-    burn_ids = [f"burn{i}" for i in burn_range]
+    """Helper function to filter data by burn dates
+
+    Parameters:
+    -----------
+    burn_range : range or list
+        Either a range object (e.g., range(4, 11)) or list of burn IDs (e.g., ['burn4', 'burn5'])
+    """
+    # Handle both range objects and lists of burn IDs
+    if isinstance(burn_range, range):
+        burn_ids = [f"burn{i}" for i in burn_range]
+    elif isinstance(burn_range, list) and len(burn_range) > 0:
+        # Check if already formatted as burn IDs
+        if isinstance(burn_range[0], str) and burn_range[0].startswith('burn'):
+            burn_ids = burn_range
+        else:
+            burn_ids = [f"burn{i}" for i in burn_range]
+    else:
+        burn_ids = [f"burn{i}" for i in burn_range]
+
     burn_dates = burn_log[burn_log["Burn ID"].isin(burn_ids)]["Date"]
     burn_dates = pd.to_datetime(burn_dates)
     if datetime_column in data.columns:
@@ -253,11 +287,6 @@ def process_aerotrak_data(file_path, instrument="AeroTrakB"):
         volume_cm = aerotrak_data["Volume (cm³)"]
     else:
         raise ValueError(f"Required column '{volume_column}' not found in AeroTrak data")
-
-    def g_mean(x):
-        """Calculate geometric mean"""
-        a = np.log(x)
-        return np.exp(a.mean())
 
     # Initialize new columns for mass concentration and calculate values
     pm_columns = []  # List to store the names of new PM concentration columns
@@ -383,22 +412,29 @@ def process_aerotrak_data(file_path, instrument="AeroTrakB"):
     baseline_values = config.get("baseline_values")
 
     if baseline_values:
-        # Apply baseline correction to each pollutant
-        for pollutant, (baseline_val, _) in baseline_values.items():
-            # Note: baseline_uncertainty (_) is stored but not currently used in calculations
-            if pollutant in filtered_aerotrak_data.columns:
-                # Ensure column is numeric first
-                filtered_aerotrak_data[pollutant] = pd.to_numeric(
-                    filtered_aerotrak_data[pollutant], errors="coerce"
-                )
-                # Subtract baseline from measurements
-                filtered_aerotrak_data[pollutant] = (
-                    filtered_aerotrak_data[pollutant] - baseline_val
-                )
-                # Set negative values to 0
-                filtered_aerotrak_data[pollutant] = filtered_aerotrak_data[
-                    pollutant
-                ].clip(lower=0)
+        # Check if this is a special case (like AeroTrakK with weighted average method)
+        if "baseline_method" in baseline_values:
+            # AeroTrakK uses weighted average - baseline calculated during processing
+            # For now, skip baseline correction for this instrument
+            # Future: implement weighted average baseline calculation here
+            pass
+        else:
+            # Apply baseline correction to each pollutant (standard case like AeroTrakB)
+            for pollutant, (baseline_val, _) in baseline_values.items():
+                # Note: baseline_uncertainty (_) is stored but not currently used in calculations
+                if pollutant in filtered_aerotrak_data.columns:
+                    # Ensure column is numeric first
+                    filtered_aerotrak_data[pollutant] = pd.to_numeric(
+                        filtered_aerotrak_data[pollutant], errors="coerce"
+                    )
+                    # Subtract baseline from measurements
+                    filtered_aerotrak_data[pollutant] = (
+                        filtered_aerotrak_data[pollutant] - baseline_val
+                    )
+                    # Set negative values to 0
+                    filtered_aerotrak_data[pollutant] = filtered_aerotrak_data[
+                        pollutant
+                    ].clip(lower=0)
 
     # Calculate Time Since Garage Closed for each burn
     for burn_id in burn_ids:
@@ -469,7 +505,14 @@ def process_quantaq_data(file_path, instrument="QuantAQB"):
     filtered_data = filter_by_burn_dates(quantaq_data, burn_range, "timestamp_local")
 
     # Apply time shift for each burn
-    burn_ids = [f"burn{i}" for i in burn_range]
+    # Handle both range objects and lists of burn IDs
+    if isinstance(burn_range, range):
+        burn_ids = [f"burn{i}" for i in burn_range]
+    elif isinstance(burn_range, list) and len(burn_range) > 0 and isinstance(burn_range[0], str):
+        burn_ids = burn_range  # Already formatted as burn IDs
+    else:
+        burn_ids = [f"burn{i}" for i in burn_range]
+
     for burn_id in burn_ids:
         if burn_id in burn_log["Burn ID"].values:
             burn_date = burn_log[burn_log["Burn ID"] == burn_id]["Date"].values[0]
@@ -540,43 +583,7 @@ def load_peak_concentrations():
 # ============================================================================
 # RATIO CALCULATION FUNCTIONS
 # ============================================================================
-def calculate_peak_ratio(peak_data, burn_id, instrument_pair, pm_size):
-    """Calculate peak concentration ratio between bedroom2 and morning room"""
-
-    # The columns in peak data appear to be formatted as 'InstrumentName_PMx (µg/m³)'
-    # with a space before the parenthesis
-
-    if instrument_pair == "AeroTrak":
-        bedroom_col = f"AeroTrakB_{pm_size}"
-        morning_col = f"AeroTrakK_{pm_size}"
-    else:  # QuantAQ
-        bedroom_col = f"QuantAQB_{pm_size}"
-        morning_col = f"QuantAQK_{pm_size}"
-
-    # Check if columns exist
-    available_cols = peak_data.columns.tolist()
-
-    if bedroom_col not in available_cols or morning_col not in available_cols:
-        return None
-
-    # Get peak values for the specific burn
-    burn_data = peak_data[peak_data["Burn_ID"] == burn_id]
-
-    if burn_data.empty:
-        return None
-
-    bedroom_peak = burn_data[bedroom_col].values[0]
-    morning_peak = burn_data[morning_col].values[0]
-
-    # Check for valid data
-    if pd.isna(bedroom_peak) or pd.isna(morning_peak) or morning_peak == 0:
-        return None
-
-    # Calculate ratio (bedroom2/morning room)
-    ratio = bedroom_peak / morning_peak
-
-    return ratio
-
+# Note: calculate_peak_ratio is imported from scripts.spatial_analysis_utils
 
 def calculate_crbox_activation_ratio(
     bedroom_data,

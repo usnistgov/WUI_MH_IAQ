@@ -1,6 +1,6 @@
 ## Migration Guide: Using Utility Modules in Existing Scripts
 
-This guide demonstrates how to migrate existing analysis scripts to use the new utility modules. We'll use `general_particle_count_comparison.py` as an example.
+This guide demonstrates how to migrate existing analysis scripts to use the new utility modules. We'll use `general_particle_count_comparison.py` and `spatial_variation_analysis.py` as examples.
 
 ---
 
@@ -10,6 +10,39 @@ This guide demonstrates how to migrate existing analysis scripts to use the new 
 **After:** Import utilities from centralized modules, focus on analysis logic
 
 **Estimated reduction:** 50-70% fewer lines of boilerplate code per script
+
+---
+
+## Available Utility Modules (Updated 2025-12-23)
+
+### Core Utilities
+1. **datetime_utils.py** - DateTime handling and time synchronization
+2. **data_filters.py** - Data filtering, transformation, and quality control
+3. **statistical_utils.py** - Statistical analysis and curve fitting
+4. **plotting_utils.py** - Bokeh plotting and visualization
+5. **instrument_config.py** - Instrument configurations and constants
+6. **data_loaders.py** - Instrument-specific data loading
+7. **spatial_analysis_utils.py** - NEW! Spatial variability analysis functions
+
+### New in v2 (2025-12-23)
+
+#### spatial_analysis_utils.py
+Functions for calculating spatial variability metrics between measurement locations:
+- `calculate_peak_ratio()` - Peak concentration ratios
+- `calculate_event_time_ratio()` - Concentration ratio at specific event time
+- `calculate_average_ratio_and_rsd()` - Time-averaged ratio and RSD
+- `calculate_crbox_activation_ratio()` - Convenience wrapper for CR Box events
+
+#### Extended instrument_config.py
+New constants and helper functions:
+- `AEROTRAK_BASELINE_VALUES` - Baseline correction values
+- `INSTRUMENT_SPECIAL_CASES` - Burn-specific special case configurations
+- `INSTRUMENT_PROCESS_POLLUTANTS` - Pollutants to process per instrument
+- `INSTRUMENT_LOCATIONS` - Physical locations of instruments
+- `get_baseline_values()` - Retrieve baseline values
+- `get_special_cases()` - Retrieve special case configs
+- `get_process_pollutants()` - Get pollutant list
+- `get_instrument_location()` - Get instrument location
 
 ---
 
@@ -737,12 +770,91 @@ sys.path.insert(0, str(repo_root))
 
 ---
 
+## Case Study: Spatial Variation Analysis Migration
+
+The `spatial_variation_analysis.py` script demonstrates a hybrid migration approach where some functions are migrated while others remain local due to architectural constraints.
+
+### Background
+
+This script calculates spatial variability of PM concentrations between two locations (bedroom2 vs. morning room). It originally contained ~1170 lines including:
+- 3 spatial analysis functions (~270 lines)
+- Custom INSTRUMENT_CONFIG dictionary (~75 lines)
+- Duplicate utility functions (~50 lines)
+
+### Migration Strategy
+
+**What Was Migrated:**
+1. `create_naive_datetime()` → `scripts.datetime_utils.create_naive_datetime()`
+2. `g_mean()` → `scripts.data_filters.g_mean()`
+3. `calculate_peak_ratio()` → `scripts.spatial_analysis_utils.calculate_peak_ratio()`
+
+**What Remains Local (and Why):**
+1. `apply_time_shift()` - Custom signature, uses INSTRUMENT_CONFIG lookup
+2. `calculate_rolling_average_burn3()` - Depends on global burn_log variable
+3. `calculate_crbox_activation_ratio()` - Depends on global burn_log variable
+4. `calculate_average_ratio_and_rsd()` - Different signature pattern
+5. `INSTRUMENT_CONFIG` dictionary - Contains file paths specific to this analysis
+
+### Results
+
+**Lines Saved:** ~90 lines removed (duplicate functions)
+**New Utilities Created:** `spatial_analysis_utils.py` (560 lines) - reusable across future spatial analysis scripts
+**Script Status:** ✓ Works as intended, compiles successfully
+
+### Key Learnings
+
+**1. Hybrid Migration is Valid:**
+Not everything needs to be migrated immediately. The script now uses 3 utility functions and retains 4 custom implementations due to legitimate architectural constraints.
+
+**2. Utility Functions Need Flexible Signatures:**
+The new `spatial_analysis_utils.py` was designed with more flexible, general-purpose signatures:
+- `calculate_event_time_ratio()` - Generic event time, works for any event
+- `calculate_average_ratio_and_rsd()` - Accepts start_time directly instead of burn_id
+- `calculate_crbox_activation_ratio()` - Convenience wrapper that accepts burn_log as parameter
+
+**3. Document Migration Decisions:**
+The script header now clearly documents:
+- Which utilities are used
+- Why certain functions remain local
+- Future refactoring opportunities
+
+### Code Example
+
+**Before:**
+```python
+# Local implementation (36 lines)
+def calculate_peak_ratio(peak_data, burn_id, instrument_pair, pm_size):
+    if instrument_pair == "AeroTrak":
+        bedroom_col = f"AeroTrakB_{pm_size}"
+        morning_col = f"AeroTrakK_{pm_size}"
+    # ... 30+ more lines
+```
+
+**After:**
+```python
+# Import from utilities
+from scripts.spatial_analysis_utils import calculate_peak_ratio
+
+# Use directly
+peak_ratio = calculate_peak_ratio(peak_data, burn_id, "AeroTrak", pm_size)
+```
+
+### Future Improvements
+
+Potential next steps for this script:
+1. **Refactor INSTRUMENT_CONFIG:** Move to `instrument_config.py` using new constants
+2. **Adapter Functions:** Create wrappers that convert burn_id to event times
+3. **Dependency Injection:** Pass burn_log as parameter instead of global variable
+
+---
+
 ## Next Steps
 
-1. **Start small:** Migrate one simple script first
+1. **Start small:** Migrate one simple script first (or use hybrid approach)
 2. **Test thoroughly:** Verify outputs match original
 3. **Gradually adopt:** Migrate scripts as you modify them
 4. **Share learnings:** Document any issues or improvements
+5. **Create new utilities:** If you find reusable patterns, add them to scripts/
 
 ---
 

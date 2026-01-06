@@ -36,7 +36,9 @@ script_dir = Path(__file__).parent
 repo_root = script_dir.parent
 sys.path.insert(0, str(repo_root))
 
+# pylint: disable=import-error,wrong-import-position
 from src.data_paths import get_data_root, get_instrument_path, get_common_file
+# pylint: enable=import-error,wrong-import-position
 
 # Set the absolute path for the dataset
 data_root = get_data_root()  # Portable path - auto-configured

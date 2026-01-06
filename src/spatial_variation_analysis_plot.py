@@ -45,13 +45,14 @@ Date: 2025
 
 import os
 import sys
-import pandas as pd
-from bokeh.plotting import figure, output_file, save
-from bokeh.models import Span, Div, ColumnDataSource
-from bokeh.layouts import column
+
 import numpy as np
-from scipy.interpolate import interp1d, make_interp_spline
+import pandas as pd
+from bokeh.layouts import column
+from bokeh.models import ColumnDataSource, Div, Span
+from bokeh.plotting import figure, output_file, save
 from scipy import stats
+from scipy.interpolate import interp1d, make_interp_spline
 
 # ============================================================================
 # SYSTEM DETECTION AND PATH SETUP
@@ -62,11 +63,9 @@ script_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(script_dir)
 sys.path.insert(0, parent_dir)
 
-# pylint: disable=import-error,wrong-import-position
-from src.data_paths import get_data_root, get_common_file
-from scripts import get_script_metadata
-from scripts.plotting_utils import apply_text_formatting
-# pylint: enable=import-error,wrong-import-position
+from scripts import get_script_metadata  # noqa: E402
+from scripts.plotting_utils import apply_text_formatting  # noqa: E402
+from src.data_paths import get_common_file, get_data_root  # noqa: E402
 
 # Get portable paths
 BASE_DIR = str(get_data_root())
@@ -77,10 +76,10 @@ print(f"[OK] Using data directory: {BASE_DIR}")
 # ============================================================================
 
 # Input file path - Excel file with spatial variation analysis results (using portable path)
-EXCEL_FILE_PATH = str(get_common_file('spatial_variation'))
+EXCEL_FILE_PATH = str(get_common_file("spatial_variation"))
 
 # Output directory for figures (using portable path)
-OUTPUT_DIR = str(get_common_file('output_figures'))
+OUTPUT_DIR = str(get_common_file("output_figures"))
 
 # Burns to analyze and their corresponding CR Box counts
 # Note: burn2 (4 CR Boxes) excluded due to data quality issues
@@ -519,7 +518,7 @@ def create_spatial_variation_plot(
                 if x_fit is not None and y_fit is not None:
                     # Determine line dash style based on device (AeroTrak: dashed, QuantAQ: dashdot)
                     line_dash_style = "dashed" if device_name == "OPC" else "dotdash"
-                    
+
                     # Plot fit line WITHOUT adding to legend
                     p.line(
                         x_fit,
@@ -616,9 +615,9 @@ def main():
     # Generate plots for each PM size
     print(f"\nGenerating plots for PM sizes: {PM_SIZES}")
     for pm_size in PM_SIZES:
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"Processing {pm_size}")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
 
         # Filter data for current PM size
         # Special case: Use PM3 from AeroTrak as proxy for PM2.5

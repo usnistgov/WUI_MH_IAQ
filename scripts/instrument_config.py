@@ -138,6 +138,78 @@ BURN3_ROLLING_WINDOW_MINUTES = 5
 # Burn 6 custom decay end time offset (hours)
 BURN6_DECAY_END_OFFSET = 0.25
 
+# Special case configurations for specific instruments and burns
+INSTRUMENT_SPECIAL_CASES = {
+    "AeroTrakB": {
+        "burn3": {"apply_rolling_average": True},
+        "burn6": {"custom_decay_time": True, "decay_end_offset": 0.25},
+    },
+    "AeroTrakK": {},
+    "QuantAQB": {
+        "burn6": {"custom_decay_time": True, "decay_end_offset": 0.25}
+    },
+    "QuantAQK": {},
+}
+
+# ============================================================================
+# Baseline Correction Values
+# ============================================================================
+
+# AeroTrak baseline values (mean, uncertainty) for each PM size
+# These are instrument-specific background concentrations measured
+# during pre-experiment baseline periods
+AEROTRAK_BASELINE_VALUES = {
+    "AeroTrakB": {
+        "PM0.5 (µg/m³)": (0.5121, 0.0079),
+        "PM1 (µg/m³)": (0.5492, 0.0116),
+        "PM3 (µg/m³)": (1.0855, 0.0511),
+        "PM5 (µg/m³)": (2.0051, 0.0831),
+        "PM10 (µg/m³)": (2.7994, 0.1160),
+        "PM25 (µg/m³)": (3.3799, 0.1397),
+    },
+    "AeroTrakK": {
+        # AeroTrakK uses weighted average baseline calculation
+        # Baseline calculated from burn5 and burn6 data during processing
+        "baseline_method": "weighted_average",
+        "baseline_burns": ["burn5", "burn6"],
+    },
+}
+
+# Process pollutant lists for each instrument
+INSTRUMENT_PROCESS_POLLUTANTS = {
+    "AeroTrakB": [
+        "PM0.5 (µg/m³)",
+        "PM1 (µg/m³)",
+        "PM3 (µg/m³)",
+        "PM5 (µg/m³)",
+        "PM10 (µg/m³)",
+        "PM25 (µg/m³)",
+    ],
+    "AeroTrakK": [
+        "PM0.5 (µg/m³)",
+        "PM1 (µg/m³)",
+        "PM3 (µg/m³)",
+        "PM5 (µg/m³)",
+        "PM10 (µg/m³)",
+        "PM25 (µg/m³)",
+    ],
+    "QuantAQB": ["PM1 (µg/m³)", "PM2.5 (µg/m³)", "PM10 (µg/m³)"],
+    "QuantAQK": ["PM1 (µg/m³)", "PM2.5 (µg/m³)", "PM10 (µg/m³)"],
+}
+
+# Instrument locations in the test house
+INSTRUMENT_LOCATIONS = {
+    "AeroTrakB": "bedroom2",
+    "AeroTrakK": "morning_room",
+    "QuantAQB": "bedroom2",
+    "QuantAQK": "morning_room",
+    "SMPS": "bedroom2",
+    "DustTrak": "bedroom2",
+    "MiniAMS": "bedroom2",
+    "PurpleAir": "bedroom2",
+    "PurpleAirK": "morning_room",
+}
+
 # ============================================================================
 # Experiment Event Configuration
 # ============================================================================
@@ -421,3 +493,112 @@ def get_instrument_datetime_column(instrument):
         'PurpleAirK': 'datetime',
     }
     return datetime_columns.get(instrument, 'datetime')
+
+
+def get_baseline_values(instrument):
+    """
+    Get baseline correction values for a specific instrument.
+
+    Parameters:
+    -----------
+    instrument : str
+        Instrument name (e.g., 'AeroTrakB', 'AeroTrakK')
+
+    Returns:
+    --------
+    dict or None
+        Dictionary of baseline values {pollutant: (mean, uncertainty)}
+        or None if no baseline values defined
+
+    Examples:
+    ---------
+    >>> baselines = get_baseline_values('AeroTrakB')
+    >>> baselines['PM2.5 (µg/m³)']
+    (0.5492, 0.0116)
+
+    >>> baselines = get_baseline_values('AeroTrakK')
+    >>> baselines['baseline_method']
+    'weighted_average'
+    """
+    return AEROTRAK_BASELINE_VALUES.get(instrument)
+
+
+def get_special_cases(instrument):
+    """
+    Get special case configurations for a specific instrument.
+
+    Parameters:
+    -----------
+    instrument : str
+        Instrument name (e.g., 'AeroTrakB', 'QuantAQB')
+
+    Returns:
+    --------
+    dict
+        Dictionary of special cases {burn_id: {configuration}}
+
+    Examples:
+    ---------
+    >>> cases = get_special_cases('AeroTrakB')
+    >>> cases['burn3']
+    {'apply_rolling_average': True}
+
+    >>> cases = get_special_cases('QuantAQB')
+    >>> cases['burn6']
+    {'custom_decay_time': True, 'decay_end_offset': 0.25}
+    """
+    return INSTRUMENT_SPECIAL_CASES.get(instrument, {})
+
+
+def get_process_pollutants(instrument):
+    """
+    Get list of pollutants to process for a specific instrument.
+
+    Parameters:
+    -----------
+    instrument : str
+        Instrument name
+
+    Returns:
+    --------
+    list of str
+        List of pollutant column names
+
+    Examples:
+    ---------
+    >>> pollutants = get_process_pollutants('AeroTrakB')
+    >>> 'PM2.5 (µg/m³)' in pollutants
+    False
+    >>> 'PM1 (µg/m³)' in pollutants
+    True
+
+    >>> pollutants = get_process_pollutants('QuantAQB')
+    >>> len(pollutants)
+    3
+    """
+    return INSTRUMENT_PROCESS_POLLUTANTS.get(instrument, [])
+
+
+def get_instrument_location(instrument):
+    """
+    Get physical location of instrument in test house.
+
+    Parameters:
+    -----------
+    instrument : str
+        Instrument name
+
+    Returns:
+    --------
+    str
+        Location name (e.g., 'bedroom2', 'morning_room')
+
+    Examples:
+    ---------
+    >>> get_instrument_location('AeroTrakB')
+    'bedroom2'
+
+    >>> get_instrument_location('AeroTrakK')
+    'morning_room'
+    """
+    return INSTRUMENT_LOCATIONS.get(instrument, 'unknown')
