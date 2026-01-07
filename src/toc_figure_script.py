@@ -27,18 +27,21 @@ import os
 import sys
 import traceback
 from pathlib import Path
-import pandas as pd
-import numpy as np
+
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 
 # Add repository root to path for portable data access
 script_dir = Path(__file__).parent
 repo_root = script_dir.parent
 sys.path.insert(0, str(repo_root))
 
-# pylint: disable=import-error,wrong-import-position
-from src.data_paths import get_data_root, get_instrument_path, get_common_file
-# pylint: enable=import-error,wrong-import-position
+from src.data_paths import (  # noqa: E402
+    get_common_file,
+    get_data_root,
+    get_instrument_path,
+)
 
 # Set the absolute path for the dataset
 data_root = get_data_root()  # Portable path - auto-configured
@@ -50,27 +53,29 @@ BURN_TO_PLOT = "burn9"
 # Variable to set which instruments to include in the plot
 # Options: "AeroTrakB", "AeroTrakK", "DustTrak", "MiniAMS", "PurpleAirK", "QuantAQB", "QuantAQK", "SMPS"
 # Set to None to include all instruments, or specify a list/set of instrument names
-INSTRUMENTS_TO_PLOT = {"AeroTrakK"}  # Use None for all, or set like: {"AeroTrakB", "DustTrak", "SMPS"}
+INSTRUMENTS_TO_PLOT = {
+    "AeroTrakK"
+}  # Use None for all, or set like: {"AeroTrakB", "DustTrak", "SMPS"}
 
 # Variable to set text sizes for the plot
 # Adjust these values to control the appearance of text in the figure
 TEXT_SIZES = {
-    "xlabel": 16,         # X-axis label font size
-    "ylabel": 16,         # Y-axis label font size
-    "legend": 14,         # Legend font size
-    "title": 16,         # Title font size (if added)
-    "xticks": 16,         # X-axis tick label font size
-    "yticks": 16,         # Y-axis tick label font size
+    "xlabel": 22,  # X-axis label font size
+    "ylabel": 24,  # Y-axis label font size
+    "legend": 18,  # Legend font size
+    "title": 18,  # Title font size (if added)
+    "xticks": 18,  # X-axis tick label font size
+    "yticks": 18,  # Y-axis tick label font size
 }
 
 # Load burn log once
-BURN_LOG_PATH = str(get_common_file('burn_log'))
+BURN_LOG_PATH = str(get_common_file("burn_log"))
 burn_log = pd.read_excel(BURN_LOG_PATH, sheet_name="Sheet2")
 
 # Define instrument configurations
 INSTRUMENT_CONFIG = {
     "AeroTrakB": {
-        "file_path": str(get_instrument_path('aerotrak_bedroom') / 'all_data.xlsx'),
+        "file_path": str(get_instrument_path("aerotrak_bedroom") / "all_data.xlsx"),
         "process_function": "process_aerotrak_data",
         "time_shift": 2.16,
         "process_pollutants": [
@@ -89,7 +94,7 @@ INSTRUMENT_CONFIG = {
         "display_name": "OPC1B",
     },
     "AeroTrakK": {
-        "file_path": str(get_instrument_path('aerotrak_kitchen') / 'all_data.xlsx'),
+        "file_path": str(get_instrument_path("aerotrak_kitchen") / "all_data.xlsx"),
         "process_function": "process_aerotrak_data",
         "time_shift": 5,
         "process_pollutants": [
@@ -149,8 +154,8 @@ INSTRUMENT_CONFIG = {
     },
     "QuantAQB": {
         "file_path": str(
-            get_instrument_path('quantaq_bedroom')
-            / 'MOD-PM-00194-b0fc215029fa4852b926bc50b28fda5a.csv'
+            get_instrument_path("quantaq_bedroom")
+            / "MOD-PM-00194-b0fc215029fa4852b926bc50b28fda5a.csv"
         ),
         "process_function": "process_quantaq_data",
         "time_shift": -2.97,
@@ -164,8 +169,8 @@ INSTRUMENT_CONFIG = {
     },
     "QuantAQK": {
         "file_path": str(
-            get_instrument_path('quantaq_kitchen')
-            / 'MOD-PM-00197-a6dd467a147a4d95a7b98a8a10ab4ea3.csv'
+            get_instrument_path("quantaq_kitchen")
+            / "MOD-PM-00197-a6dd467a147a4d95a7b98a8a10ab4ea3.csv"
         ),
         "process_function": "process_quantaq_data",
         "time_shift": 0,
@@ -188,6 +193,7 @@ INSTRUMENT_CONFIG = {
     },
 }
 
+
 # Utility function to create timezone-naive datetime
 def create_naive_datetime(date_str, time_str):
     """Create a timezone-naive datetime object from date and time strings"""
@@ -195,6 +201,7 @@ def create_naive_datetime(date_str, time_str):
     if pd.notna(dt) and hasattr(dt, "tz") and dt.tz is not None:
         dt = dt.tz_localize(None)
     return dt
+
 
 # Modified apply_time_shift function
 def apply_time_shift(df, instrument, burn_date):
@@ -214,6 +221,7 @@ def apply_time_shift(df, instrument, burn_date):
 
     return df
 
+
 # Helper function to filter data by burn dates
 def filter_by_burn_dates(data, burn_range, datetime_column):
     """Filter data by burn dates from burn log"""
@@ -226,6 +234,7 @@ def filter_by_burn_dates(data, burn_range, datetime_column):
         return data[data["Date"].isin(burn_dates.dt.date)]
     else:
         raise KeyError(f"Column '{datetime_column}' not found in the dataset.")
+
 
 # Function to process AeroTrak data
 def process_aerotrak_data(file_path, instrument="AeroTrakB"):
@@ -268,7 +277,9 @@ def process_aerotrak_data(file_path, instrument="AeroTrakB"):
             particle_size_m = particle_size * 1e-6  # Convert size from µm to m
 
             # Initialize variable for this iteration
-            new_diff_col_µg_m3 = f"PM{size_values[channel]}-{next_size_value} Diff (µg/m³)"
+            new_diff_col_µg_m3 = (
+                f"PM{size_values[channel]}-{next_size_value} Diff (µg/m³)"
+            )
 
             diff_col = f"{channel} Diff (#)"
             if diff_col in aerotrak_data.columns and volume_cm is not None:
@@ -289,7 +300,10 @@ def process_aerotrak_data(file_path, instrument="AeroTrakB"):
 
             # Handle cumulative counts for PM concentrations
             cumul_col = f"{channel} Cumul (#)"
-            if cumul_col in aerotrak_data.columns and new_diff_col_µg_m3 in aerotrak_data.columns:
+            if (
+                cumul_col in aerotrak_data.columns
+                and new_diff_col_µg_m3 in aerotrak_data.columns
+            ):
                 # Create new PM concentration column from the Diff column
                 pm_column_name = f"PM{next_size_value} (µg/m³)"
                 aerotrak_data[pm_column_name] = aerotrak_data[new_diff_col_µg_m3]
@@ -353,6 +367,7 @@ def process_aerotrak_data(file_path, instrument="AeroTrakB"):
 
     return filtered_aerotrak_data
 
+
 # Function to calculate 5-minute rolling average for burn3
 def calculate_rolling_average_burn3(data):
     """Calculate 5-minute rolling average for burn3 data"""
@@ -391,6 +406,7 @@ def calculate_rolling_average_burn3(data):
     ].values
     return data
 
+
 # Function to process DustTrak data
 def process_dusttrak_data(file_path, instrument="DustTrak"):
     """Process DustTrak data with standardized output format"""
@@ -422,11 +438,10 @@ def process_dusttrak_data(file_path, instrument="DustTrak"):
     for burn_id in burn_ids:
         if burn_id in burn_log["Burn ID"].values:
             burn_date = burn_log[burn_log["Burn ID"] == burn_id]["Date"].values[0]
-            filtered_data = apply_time_shift(
-                filtered_data, instrument, burn_date
-            )
+            filtered_data = apply_time_shift(filtered_data, instrument, burn_date)
 
     return filtered_data
+
 
 # Function to process MiniAMS data
 def process_miniams_data(file_path, instrument="MiniAMS"):
@@ -458,11 +473,10 @@ def process_miniams_data(file_path, instrument="MiniAMS"):
     for burn_id in burn_ids:
         if burn_id in burn_log["Burn ID"].values:
             burn_date = burn_log[burn_log["Burn ID"] == burn_id]["Date"].values[0]
-            filtered_data = apply_time_shift(
-                filtered_data, instrument, burn_date
-            )
+            filtered_data = apply_time_shift(filtered_data, instrument, burn_date)
 
     return filtered_data
+
 
 # Function to process PurpleAirK data
 def process_purpleairk_data(file_path):
@@ -475,6 +489,7 @@ def process_purpleairk_data(file_path):
 
     # Filter by burn dates using 'DateTime' column (burns 6-10 for PurpleAir)
     return filter_by_burn_dates(purpleair_data, range(6, 11), "DateTime")
+
 
 # Function to process SMPS data
 def process_smps_data(file_path, instrument="SMPS"):
@@ -741,6 +756,7 @@ def process_smps_data(file_path, instrument="SMPS"):
 
     return combined_smps_data
 
+
 # Function to process QuantAQ data
 def process_quantaq_data(file_path, instrument="QuantAQB"):
     """Process QuantAQ data with standardized output format"""
@@ -771,11 +787,10 @@ def process_quantaq_data(file_path, instrument="QuantAQB"):
     for burn_id in burn_ids:
         if burn_id in burn_log["Burn ID"].values:
             burn_date = burn_log[burn_log["Burn ID"] == burn_id]["Date"].values[0]
-            filtered_data = apply_time_shift(
-                filtered_data, instrument, burn_date
-            )
+            filtered_data = apply_time_shift(filtered_data, instrument, burn_date)
 
     return filtered_data
+
 
 def determine_instrument_location(instrument, burn_id):
     """Determine if instrument is in bedroom or kitchen for the given burn"""
@@ -796,6 +811,7 @@ def determine_instrument_location(instrument, burn_id):
     else:
         return "unknown"
 
+
 def get_pm25_equivalent_pollutant(instrument):
     """Get the appropriate PM2.5 equivalent pollutant for each instrument"""
     if instrument.startswith("AeroTrak"):
@@ -805,7 +821,10 @@ def get_pm25_equivalent_pollutant(instrument):
     else:
         return "PM2.5 (µg/m³)"  # Use PM2.5 for others
 
-def create_toc_figure(burn_to_plot=BURN_TO_PLOT, instruments_to_plot=None, text_sizes=None):
+
+def create_toc_figure(
+    burn_to_plot=BURN_TO_PLOT, instruments_to_plot=None, text_sizes=None
+):
     """Create high-quality TOC figure for a single burn
     Parameters:
     -----------
@@ -823,7 +842,9 @@ def create_toc_figure(burn_to_plot=BURN_TO_PLOT, instruments_to_plot=None, text_
     if text_sizes is None:
         text_sizes = TEXT_SIZES
     print(f"Creating TOC figure for {burn_to_plot}...")
-    print(f"Instruments to plot: {instruments_to_plot if instruments_to_plot else 'All available (except MiniAMS)'}")
+    print(
+        f"Instruments to plot: {instruments_to_plot if instruments_to_plot else 'All available (except MiniAMS)'}"
+    )
 
     # Get burn date
     burn_row = burn_log[burn_log["Burn ID"] == burn_to_plot]
@@ -836,8 +857,8 @@ def create_toc_figure(burn_to_plot=BURN_TO_PLOT, instruments_to_plot=None, text_
     garage_closed_time = create_naive_datetime(burn_date.date(), garage_closed_time_str)
 
     # Set figure size and DPI for exact pixel dimensions
-    # 550px wide × 1050px tall at 100 DPI
-    fig_width_inches = 550 / 100
+    # 650px wide × 1050px tall at 100 DPI
+    fig_width_inches = 650 / 100
     fig_height_inches = 1050 / 100
     dpi = 100
 
@@ -964,7 +985,7 @@ def create_toc_figure(burn_to_plot=BURN_TO_PLOT, instruments_to_plot=None, text_
             continue
 
     # Add vertical line for garage closed (at time 0)
-    ax.axvline(x=0, color='black', linewidth=1, linestyle='-', label='Garage Closed')
+    ax.axvline(x=0, color="black", linewidth=1, linestyle="-", label="Garage Closed")
 
     # Add vertical line for CR Box On
     cr_box_on_time_str = burn_row["CR Box on"].iloc[0]
@@ -972,42 +993,47 @@ def create_toc_figure(burn_to_plot=BURN_TO_PLOT, instruments_to_plot=None, text_
         cr_box_on_time = create_naive_datetime(burn_date.date(), cr_box_on_time_str)
         if pd.notna(cr_box_on_time) and pd.notna(garage_closed_time):
             time_delta = cr_box_on_time - garage_closed_time
-            if hasattr(time_delta, 'total_seconds'):
+            if hasattr(time_delta, "total_seconds"):
                 cr_box_on_time_since_garage_closed = time_delta.total_seconds() / 3600
                 ax.axvline(
                     x=cr_box_on_time_since_garage_closed,
-                    color='black',
+                    color="black",
                     linewidth=1,
-                    linestyle='--',
-                    label='CR Box on'
+                    linestyle="--",
+                    label="CR Box on",
                 )
 
     # Set axis properties
     ax.set_xlabel("Time Since Garage Closed (hours)", fontsize=text_sizes["xlabel"])
     ax.set_ylabel("PM Concentration (µg/m³)", fontsize=text_sizes["ylabel"])
-    ax.set_yscale('log')
+    ax.set_yscale("log")
     ax.set_xlim(-1, 3)
     ax.set_ylim(10**-2, 10**5)
 
     # Set tick label font sizes
-    ax.tick_params(axis='x', labelsize=text_sizes.get("xticks", 12))
-    ax.tick_params(axis='y', labelsize=text_sizes.get("yticks", 12))
+    ax.tick_params(axis="x", labelsize=text_sizes.get("xticks", 12))
+    ax.tick_params(axis="y", labelsize=text_sizes.get("yticks", 12))
 
     # Customize legend
-    ax.legend(loc='upper right', fontsize=text_sizes["legend"], framealpha=0.8)
+    ax.legend(loc="upper right", fontsize=text_sizes["legend"], framealpha=0.8)
 
     # Adjust layout to prevent label cutoff
     plt.tight_layout()
 
     # Save plot as PNG with transparent background
-    os.makedirs(str(get_common_file('output_figures')), exist_ok=True)
+    os.makedirs(str(get_common_file("output_figures")), exist_ok=True)
     png_filename = f"./Paper_figures/{burn_to_plot}_TOC_figure.png"
-    plt.savefig(png_filename, format='png', dpi=dpi, transparent=True, bbox_inches='tight')
+    plt.savefig(
+        png_filename, format="png", dpi=dpi, transparent=True, bbox_inches="tight"
+    )
 
     print(f"TOC figure saved to {png_filename}")
-    print(f"Figure dimensions: {fig_width_inches*dpi:.0f}px × {fig_height_inches*dpi:.0f}px")
+    print(
+        f"Figure dimensions: {fig_width_inches * dpi:.0f}px × {fig_height_inches * dpi:.0f}px"
+    )
 
     plt.close()
+
 
 def main():
     """Main function to create the TOC figure"""
@@ -1020,6 +1046,7 @@ def main():
     except Exception as e:  # pylint: disable=broad-exception-caught
         print(f"Error in main function: {e}")
         traceback.print_exc()
+
 
 # If this script is run directly, execute the main function
 if __name__ == "__main__":
