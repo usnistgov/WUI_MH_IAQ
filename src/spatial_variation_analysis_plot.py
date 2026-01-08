@@ -406,7 +406,7 @@ def create_spatial_variation_plot(
     """
     # Create figure
     p = figure(
-        title=f"Spatial Variation Analysis - {pm_size}",
+        #title=f"Spatial Variation Analysis - {pm_size}",
         x_axis_label="Number of CR Boxes",
         y_axis_label="Concentration Ratio (Bedroom2 / Morning Room)",
         y_range=(float(PLOT_Y_RANGE[0]), float(PLOT_Y_RANGE[1])),  # type: ignore
