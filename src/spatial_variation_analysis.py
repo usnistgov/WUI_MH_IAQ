@@ -407,34 +407,37 @@ def process_aerotrak_data(file_path, instrument="AeroTrakB"):
                 filtered_aerotrak_data[col], errors="coerce"
             )
 
-    # Apply baseline correction
-    config = INSTRUMENT_CONFIG[instrument]
-    baseline_values = config.get("baseline_values")
+    # Apply baseline correction - DISABLED for spatial variation analysis
+    # Baseline correction removed to avoid near-zero artifacts in concentration ratios
+    # For spatial variation analysis, we compare raw concentrations between locations
+    # since baseline correction can introduce artifacts if baselines differ between instruments
+    # config = INSTRUMENT_CONFIG[instrument]
+    # baseline_values = config.get("baseline_values")
 
-    if baseline_values:
-        # Check if this is a special case (like AeroTrakK with weighted average method)
-        if "baseline_method" in baseline_values:
-            # AeroTrakK uses weighted average - baseline calculated during processing
-            # For now, skip baseline correction for this instrument
-            # Future: implement weighted average baseline calculation here
-            pass
-        else:
-            # Apply baseline correction to each pollutant (standard case like AeroTrakB)
-            for pollutant, (baseline_val, _) in baseline_values.items():
-                # Note: baseline_uncertainty (_) is stored but not currently used in calculations
-                if pollutant in filtered_aerotrak_data.columns:
-                    # Ensure column is numeric first
-                    filtered_aerotrak_data[pollutant] = pd.to_numeric(
-                        filtered_aerotrak_data[pollutant], errors="coerce"
-                    )
-                    # Subtract baseline from measurements
-                    filtered_aerotrak_data[pollutant] = (
-                        filtered_aerotrak_data[pollutant] - baseline_val
-                    )
-                    # Set negative values to 0
-                    filtered_aerotrak_data[pollutant] = filtered_aerotrak_data[
-                        pollutant
-                    ].clip(lower=0)
+    # if baseline_values:
+    #     # Check if this is a special case (like AeroTrakK with weighted average method)
+    #     if "baseline_method" in baseline_values:
+    #         # AeroTrakK uses weighted average - baseline calculated during processing
+    #         # For now, skip baseline correction for this instrument
+    #         # Future: implement weighted average baseline calculation here
+    #         pass
+    #     else:
+    #         # Apply baseline correction to each pollutant (standard case like AeroTrakB)
+    #         for pollutant, (baseline_val, _) in baseline_values.items():
+    #             # Note: baseline_uncertainty (_) is stored but not currently used in calculations
+    #             if pollutant in filtered_aerotrak_data.columns:
+    #                 # Ensure column is numeric first
+    #                 filtered_aerotrak_data[pollutant] = pd.to_numeric(
+    #                     filtered_aerotrak_data[pollutant], errors="coerce"
+    #                 )
+    #                 # Subtract baseline from measurements
+    #                 filtered_aerotrak_data[pollutant] = (
+    #                     filtered_aerotrak_data[pollutant] - baseline_val
+    #                 )
+    #                 # Set negative values to 0
+    #                 filtered_aerotrak_data[pollutant] = filtered_aerotrak_data[
+    #                     pollutant
+    #                 ].clip(lower=0)
 
     # Calculate Time Since Garage Closed for each burn
     for burn_id in burn_ids:
