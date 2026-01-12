@@ -19,18 +19,19 @@ Author: Nathan Lima
 Date: 2025-01-08
 """
 
-import pandas as pd
-import numpy as np
-from pathlib import Path
 import json
 import sys
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
 
 # ====== CONFIGURATION VARIABLES ======
 # Set this to 'MassConc' or 'NumConc'
-CONCENTRATION_TYPE = 'MassConc'  # Options: 'MassConc' or 'NumConc'
+CONCENTRATION_TYPE = "MassConc"  # Options: 'MassConc' or 'NumConc'
 
 # Set output directory path
-OUTPUT_PATH = 'C:/Users/Nathan/Documents/NIST/WUI_smoke/exported_data'
+OUTPUT_PATH = "C:/Users/nml/Downloads/exported_data"
 
 # ======================================
 
@@ -38,15 +39,15 @@ OUTPUT_PATH = 'C:/Users/Nathan/Documents/NIST/WUI_smoke/exported_data'
 def load_config():
     """Load data_config.json to get SMPS data path"""
     repo_root = Path(__file__).parent.parent
-    config_path = repo_root / 'data_config.json'
+    config_path = repo_root / "data_config.json"
 
-    with open(config_path, 'r') as f:
+    with open(config_path, "r") as f:
         config = json.load(f)
 
     return config
 
 
-def read_transposed_smps_file(file_path, conc_type='MassConc'):
+def read_transposed_smps_file(file_path, conc_type="MassConc"):
     """
     Read a raw SMPS file in transposed format and extract datetime and total concentration.
 
@@ -75,17 +76,17 @@ def read_transposed_smps_file(file_path, conc_type='MassConc'):
     total_conc_row_idx = None
 
     for idx, label in enumerate(labels):
-        if label == 'Date':
+        if label == "Date":
             date_row_idx = idx
-        elif label == 'Start Time':
+        elif label == "Start Time":
             time_row_idx = idx
-        elif 'Total Concentration' in label:
+        elif "Total Concentration" in label:
             total_conc_row_idx = idx
             # Extract units from label (e.g., "Total Concentration(µg/m³)")
-            if '(' in label and ')' in label:
-                units = label[label.find('(')+1:label.find(')')]
+            if "(" in label and ")" in label:
+                units = label[label.find("(") + 1 : label.find(")")]
             else:
-                units = 'unknown'
+                units = "unknown"
 
     if date_row_idx is None or time_row_idx is None or total_conc_row_idx is None:
         raise ValueError(f"Could not find required rows in {file_path}")
@@ -109,19 +110,17 @@ def read_transposed_smps_file(file_path, conc_type='MassConc'):
             datetimes.append(pd.NaT)
 
     # Create DataFrame
-    result_df = pd.DataFrame({
-        'datetime': datetimes,
-        'Total Concentration': concentrations,
-        'units': units
-    })
+    result_df = pd.DataFrame(
+        {"datetime": datetimes, "Total Concentration": concentrations, "units": units}
+    )
 
     # Remove rows with NaT datetime
-    result_df = result_df.dropna(subset=['datetime'])
+    result_df = result_df.dropna(subset=["datetime"])
 
     return result_df
 
 
-def process_all_smps_files(conc_type='MassConc', output_dir=None):
+def process_all_smps_files(conc_type="MassConc", output_dir=None):
     """
     Process all SMPS files of the specified concentration type and export to CSV.
 
@@ -132,14 +131,14 @@ def process_all_smps_files(conc_type='MassConc', output_dir=None):
     output_dir : str or Path
         Directory to save the output CSV file
     """
-    print(f"\n{'='*60}")
-    print(f"SMPS Total Concentration Export")
-    print(f"{'='*60}")
+    print(f"\n{'=' * 60}")
+    print("SMPS Total Concentration Export")
+    print(f"{'=' * 60}")
     print(f"Concentration Type: {conc_type}")
 
     # Load configuration
     config = load_config()
-    smps_path = Path(config['instruments']['smps']['path'])
+    smps_path = Path(config["instruments"]["smps"]["path"])
 
     print(f"SMPS Data Directory: {smps_path}")
 
@@ -168,7 +167,7 @@ def process_all_smps_files(conc_type='MassConc', output_dir=None):
 
             # Get units from first file
             if units is None and len(df) > 0:
-                units = df['units'].iloc[0]
+                units = df["units"].iloc[0]
 
             print(f"  ✓ Extracted {len(df)} data points")
             print(f"  Date range: {df['datetime'].min()} to {df['datetime'].max()}")
@@ -182,29 +181,31 @@ def process_all_smps_files(conc_type='MassConc', output_dir=None):
         return
 
     # Combine all data
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("Combining data from all files...")
     combined_df = pd.concat(all_data, ignore_index=True)
 
     # Sort by datetime
-    combined_df = combined_df.sort_values('datetime').reset_index(drop=True)
+    combined_df = combined_df.sort_values("datetime").reset_index(drop=True)
 
     # Remove duplicate timestamps (keep first occurrence)
-    combined_df = combined_df.drop_duplicates(subset='datetime', keep='first')
+    combined_df = combined_df.drop_duplicates(subset="datetime", keep="first")
 
     # Drop the units column (not needed in output)
-    combined_df = combined_df.drop(columns=['units'])
+    combined_df = combined_df.drop(columns=["units"])
 
     # Add units to column name
     if units:
-        combined_df.columns = ['datetime', f'Total Concentration ({units})']
+        combined_df.columns = ["datetime", f"Total Concentration ({units})"]
 
     print(f"Total data points: {len(combined_df)}")
-    print(f"Date range: {combined_df['datetime'].min()} to {combined_df['datetime'].max()}")
+    print(
+        f"Date range: {combined_df['datetime'].min()} to {combined_df['datetime'].max()}"
+    )
 
     # Export to CSV
     if output_dir is None:
-        output_dir = Path.cwd() / 'output'
+        output_dir = Path.cwd() / "output"
     else:
         output_dir = Path(output_dir)
 
@@ -215,11 +216,11 @@ def process_all_smps_files(conc_type='MassConc', output_dir=None):
 
     combined_df.to_csv(output_path, index=False)
 
-    print(f"\n{'='*60}")
-    print(f"✓ Export complete!")
+    print(f"\n{'=' * 60}")
+    print("Export complete!")
     print(f"Output file: {output_path}")
     print(f"File size: {output_path.stat().st_size / 1024:.2f} KB")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     # Display first few rows
     print("Preview of exported data:")
@@ -230,12 +231,11 @@ def process_all_smps_files(conc_type='MassConc', output_dir=None):
 
 if __name__ == "__main__":
     # Validate configuration
-    if CONCENTRATION_TYPE not in ['MassConc', 'NumConc']:
-        print(f"ERROR: CONCENTRATION_TYPE must be 'MassConc' or 'NumConc', got '{CONCENTRATION_TYPE}'")
+    if CONCENTRATION_TYPE not in ["MassConc", "NumConc"]:
+        print(
+            f"ERROR: CONCENTRATION_TYPE must be 'MassConc' or 'NumConc', got '{CONCENTRATION_TYPE}'"
+        )
         sys.exit(1)
 
     # Process files
-    process_all_smps_files(
-        conc_type=CONCENTRATION_TYPE,
-        output_dir=OUTPUT_PATH
-    )
+    process_all_smps_files(conc_type=CONCENTRATION_TYPE, output_dir=OUTPUT_PATH)
