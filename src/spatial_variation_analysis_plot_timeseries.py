@@ -53,22 +53,22 @@ parent_dir = os.path.dirname(script_dir)
 sys.path.insert(0, parent_dir)
 
 from scripts import get_script_metadata  # noqa: E402
-from scripts.plotting_utils import apply_text_formatting  # noqa: E402
-from src.data_paths import get_common_file, get_data_root  # noqa: E402
-from scripts.datetime_utils import create_naive_datetime, TIME_SHIFTS  # noqa: E402
 from scripts.data_loaders import load_burn_log  # noqa: E402
+from scripts.datetime_utils import TIME_SHIFTS, create_naive_datetime  # noqa: E402
 from scripts.instrument_config import (  # noqa: E402
-    get_instrument_datetime_column,
     get_baseline_values,
+    get_instrument_datetime_column,
     get_instrument_location,
 )
+from scripts.plotting_utils import apply_text_formatting  # noqa: E402
+from src.data_paths import get_common_file, get_data_root  # noqa: E402
 
 # Get portable paths
 BASE_DIR = str(get_data_root())
 print(f"[OK] Using data directory: {BASE_DIR}")
 
 # Load burn log
-burn_log_path = get_common_file('burn_log')
+burn_log_path = get_common_file("burn_log")
 burn_log = load_burn_log(burn_log_path)
 print(f"[OK] Burn log loaded from: {burn_log_path}")
 
@@ -80,7 +80,7 @@ print(f"[OK] Burn log loaded from: {burn_log_path}")
 OUTPUT_DIR = str(get_common_file("output_figures"))
 
 # Burns to exclude (user can modify this list)
-EXCLUDED_BURNS = []  # Example: ["burn1", "burn5", "burn6"]
+EXCLUDED_BURNS = ["burn2", "burn5", "burn6"]  # Example: ["burn1", "burn5", "burn6"]
 
 # PM sizes to create plots for
 PM_SIZES = ["PM1 (µg/m³)", "PM2.5 (µg/m³)", "PM10 (µg/m³)"]
@@ -113,7 +113,7 @@ PAC_LABELS = {
 }
 
 # Time range for x-axis
-TIME_RANGE = (-1, 5)  # Hours since garage door closed
+TIME_RANGE = (-1, 6)  # Hours since garage door closed
 
 # Hourly bins for average ratios (fixed 1-hour windows)
 HOURLY_BINS = [
@@ -132,6 +132,7 @@ PLOT_Y_RANGE = (0, 2.0)  # Y-axis range for ratio plots
 # INSTRUMENT DATA LOADING
 # ============================================================================
 
+
 def load_instrument_data():
     """
     Load time-series data from all four instruments
@@ -142,9 +143,9 @@ def load_instrument_data():
         Dictionary with instrument names as keys and DataFrames as values
     """
     from src.spatial_variation_analysis import (
+        INSTRUMENT_CONFIG,
         process_aerotrak_data,
         process_quantaq_data,
-        INSTRUMENT_CONFIG,
     )
 
     print("\n" + "=" * 60)
@@ -209,7 +210,9 @@ def load_peak_times():
     pd.DataFrame or None
         DataFrame with peak times for all instruments and burns
     """
-    peak_file = os.path.join(BASE_DIR, "burn_data", "peak_concentrations_all_instruments_edited.xlsx")
+    peak_file = os.path.join(
+        BASE_DIR, "burn_data", "peak_concentrations_all_instruments_edited.xlsx"
+    )
 
     try:
         peak_data = pd.read_excel(peak_file, sheet_name="data")
@@ -223,6 +226,7 @@ def load_peak_times():
 # ============================================================================
 # RATIO CALCULATION FUNCTIONS
 # ============================================================================
+
 
 def get_burns_with_complete_data(instruments, burn_log):
     """
@@ -260,8 +264,10 @@ def get_burns_with_complete_data(instruments, burn_log):
         has_nef_pair = False
 
         # Check OPC pair (AeroTrak)
-        if (instruments["AeroTrakB"] is not None and
-            instruments["AeroTrakK"] is not None):
+        if (
+            instruments["AeroTrakB"] is not None
+            and instruments["AeroTrakK"] is not None
+        ):
             aerotrak_b_data = instruments["AeroTrakB"][
                 instruments["AeroTrakB"]["Date"] == burn_date
             ]
@@ -272,8 +278,7 @@ def get_burns_with_complete_data(instruments, burn_log):
                 has_opc_pair = True
 
         # Check Nef+OPC pair (QuantAQ)
-        if (instruments["QuantAQB"] is not None and
-            instruments["QuantAQK"] is not None):
+        if instruments["QuantAQB"] is not None and instruments["QuantAQK"] is not None:
             quantaq_b_data = instruments["QuantAQB"][
                 instruments["QuantAQB"]["Date"] == burn_date
             ]
@@ -296,8 +301,13 @@ def get_burns_with_complete_data(instruments, burn_log):
 
 
 def calculate_peak_ratio_with_time(
-    bedroom_data, morning_data, burn_id, pm_size,
-    datetime_col_b, datetime_col_m, instrument_type
+    bedroom_data,
+    morning_data,
+    burn_id,
+    pm_size,
+    datetime_col_b,
+    datetime_col_m,
+    instrument_type,
 ):
     """
     Calculate peak ratio and mean peak time for a burn
@@ -335,7 +345,9 @@ def calculate_peak_ratio_with_time(
     if pd.isna(garage_closed_str) or garage_closed_str == "n/a":
         return None, None
 
-    garage_closed_time = create_naive_datetime(burn_info["Date"].iloc[0], garage_closed_str)
+    garage_closed_time = create_naive_datetime(
+        burn_info["Date"].iloc[0], garage_closed_str
+    )
 
     # Filter for burn date
     bedroom_burn = bedroom_data[bedroom_data["Date"] == burn_date].copy()
@@ -362,7 +374,11 @@ def calculate_peak_ratio_with_time(
     bedroom_peak_conc = bedroom_burn.loc[bedroom_peak_idx, pm_size]
     morning_peak_conc = morning_burn.loc[morning_peak_idx, pm_size]
 
-    if pd.isna(bedroom_peak_conc) or pd.isna(morning_peak_conc) or morning_peak_conc <= 0:
+    if (
+        pd.isna(bedroom_peak_conc)
+        or pd.isna(morning_peak_conc)
+        or morning_peak_conc <= 0
+    ):
         return None, None
 
     # Calculate ratio
@@ -376,16 +392,19 @@ def calculate_peak_ratio_with_time(
         return None, None
 
     # Mean time in hours since garage closed
-    bedroom_time_diff = (pd.Timestamp(bedroom_peak_time) - pd.Timestamp(garage_closed_time)).total_seconds() / 3600
-    morning_time_diff = (pd.Timestamp(morning_peak_time) - pd.Timestamp(garage_closed_time)).total_seconds() / 3600
+    bedroom_time_diff = (
+        pd.Timestamp(bedroom_peak_time) - pd.Timestamp(garage_closed_time)
+    ).total_seconds() / 3600
+    morning_time_diff = (
+        pd.Timestamp(morning_peak_time) - pd.Timestamp(garage_closed_time)
+    ).total_seconds() / 3600
     mean_time_hours = (bedroom_time_diff + morning_time_diff) / 2
 
     return ratio, mean_time_hours
 
 
 def calculate_crbox_ratio_with_time(
-    bedroom_data, morning_data, burn_id, pm_size,
-    datetime_col_b, datetime_col_m
+    bedroom_data, morning_data, burn_id, pm_size, datetime_col_b, datetime_col_m
 ):
     """
     Calculate CR Box activation ratio and time
@@ -415,7 +434,9 @@ def calculate_crbox_ratio_with_time(
         return None, None
 
     # Calculate time in hours since garage closed
-    time_hours = (pd.Timestamp(cr_box_time) - pd.Timestamp(garage_closed_time)).total_seconds() / 3600
+    time_hours = (
+        pd.Timestamp(cr_box_time) - pd.Timestamp(garage_closed_time)
+    ).total_seconds() / 3600
 
     # Filter data
     burn_date_only = pd.to_datetime(burn_date).date()
@@ -471,8 +492,7 @@ def calculate_crbox_ratio_with_time(
 
 
 def calculate_hourly_average_ratios(
-    bedroom_data, morning_data, burn_id, pm_size,
-    datetime_col_b, datetime_col_m
+    bedroom_data, morning_data, burn_id, pm_size, datetime_col_b, datetime_col_m
 ):
     """
     Calculate average ratios for fixed hourly bins
@@ -599,6 +619,7 @@ def calculate_hourly_average_ratios(
 # PLOTTING FUNCTION
 # ============================================================================
 
+
 def create_timeseries_plot(instruments, valid_burns, pm_size):
     """
     Create time-series plot for spatial variation ratios
@@ -630,21 +651,38 @@ def create_timeseries_plot(instruments, valid_burns, pm_size):
     # Apply standard text formatting
     apply_text_formatting(p)
 
-    # Generate color palette for burns
-    from bokeh.palettes import Category20
+    # Custom color palette matching presentation theme
+    custom_palette = [
+        "#003f5c",
+        "#1d4772",
+        "#404e84",
+        "#665191",
+        "#8d5196",
+        "#b35093",
+        "#d45087",
+        "#f3678f",  # Additional colors in similar style
+        "#ff8590",
+        "#ffa38f",
+        "#ffc08a",
+        "#ffdc82",
+    ]
+
+    # Generate color list for burns
     n_burns = len(valid_burns)
-    if n_burns <= 20:
-        colors = Category20[max(3, n_burns)]
+    if n_burns <= len(custom_palette):
+        colors = custom_palette[:n_burns]
     else:
-        # Repeat colors if more than 20 burns
-        colors = (Category20[20] * ((n_burns // 20) + 1))[:n_burns]
+        # Repeat palette if more burns than colors
+        colors = (custom_palette * ((n_burns // len(custom_palette)) + 1))[:n_burns]
 
     # Create color mapping using burn_id only
     burn_ids = [burn_id for burn_id, _, _ in valid_burns]
     burn_colors = dict(zip(burn_ids, colors))
 
     # Get appropriate PM size for AeroTrak
-    aerotrak_pm_size = AEROTRAK_PM_SIZE_FOR_PM25 if pm_size == "PM2.5 (µg/m³)" else pm_size
+    aerotrak_pm_size = (
+        AEROTRAK_PM_SIZE_FOR_PM25 if pm_size == "PM2.5 (µg/m³)" else pm_size
+    )
 
     # Track which PAC labels we've added to legend (only show circle markers)
     legend_added = set()
@@ -661,30 +699,41 @@ def create_timeseries_plot(instruments, valid_burns, pm_size):
             # Calculate ratios for OPC (AeroTrak)
             # Peak ratio
             peak_ratio_opc, peak_time_opc = calculate_peak_ratio_with_time(
-                instruments["AeroTrakB"], instruments["AeroTrakK"],
-                burn_id, aerotrak_pm_size,
-                "Date and Time", "Date and Time", "OPC"
+                instruments["AeroTrakB"],
+                instruments["AeroTrakK"],
+                burn_id,
+                aerotrak_pm_size,
+                "Date and Time",
+                "Date and Time",
+                "OPC",
             )
 
             # CR Box activation ratio
             crbox_ratio_opc, crbox_time_opc = calculate_crbox_ratio_with_time(
-                instruments["AeroTrakB"], instruments["AeroTrakK"],
-                burn_id, aerotrak_pm_size,
-                "Date and Time", "Date and Time"
+                instruments["AeroTrakB"],
+                instruments["AeroTrakK"],
+                burn_id,
+                aerotrak_pm_size,
+                "Date and Time",
+                "Date and Time",
             )
 
             # Hourly average ratios
             hourly_ratios_opc = calculate_hourly_average_ratios(
-                instruments["AeroTrakB"], instruments["AeroTrakK"],
-                burn_id, aerotrak_pm_size,
-                "Date and Time", "Date and Time"
+                instruments["AeroTrakB"],
+                instruments["AeroTrakK"],
+                burn_id,
+                aerotrak_pm_size,
+                "Date and Time",
+                "Date and Time",
             )
 
             # Plot OPC markers (hollow)
             # Peak (triangle) - no legend
             if peak_ratio_opc is not None and peak_time_opc is not None:
                 p.scatter(
-                    [peak_time_opc], [peak_ratio_opc],
+                    [peak_time_opc],
+                    [peak_ratio_opc],
                     marker=RATIO_SHAPES["Peak"],
                     size=10,
                     color=burn_color,
@@ -695,7 +744,8 @@ def create_timeseries_plot(instruments, valid_burns, pm_size):
             # CR Box activation (square) - no legend
             if crbox_ratio_opc is not None and crbox_time_opc is not None:
                 p.scatter(
-                    [crbox_time_opc], [crbox_ratio_opc],
+                    [crbox_time_opc],
+                    [crbox_ratio_opc],
                     marker=RATIO_SHAPES["CR_Box"],
                     size=10,
                     color=burn_color,
@@ -713,7 +763,8 @@ def create_timeseries_plot(instruments, valid_burns, pm_size):
 
                 if legend_key_opc not in legend_added:
                     p.scatter(
-                        times_opc, ratios_opc,
+                        times_opc,
+                        ratios_opc,
                         marker=RATIO_SHAPES["Hourly_Avg"],
                         size=10,
                         color=burn_color,
@@ -724,7 +775,8 @@ def create_timeseries_plot(instruments, valid_burns, pm_size):
                     legend_added.add(legend_key_opc)
                 else:
                     p.scatter(
-                        times_opc, ratios_opc,
+                        times_opc,
+                        ratios_opc,
                         marker=RATIO_SHAPES["Hourly_Avg"],
                         size=10,
                         color=burn_color,
@@ -737,30 +789,41 @@ def create_timeseries_plot(instruments, valid_burns, pm_size):
             # Calculate ratios for Nef+OPC (QuantAQ)
             # Peak ratio
             peak_ratio_nef, peak_time_nef = calculate_peak_ratio_with_time(
-                instruments["QuantAQB"], instruments["QuantAQK"],
-                burn_id, pm_size,
-                "timestamp_local", "timestamp_local", "Nef+OPC"
+                instruments["QuantAQB"],
+                instruments["QuantAQK"],
+                burn_id,
+                pm_size,
+                "timestamp_local",
+                "timestamp_local",
+                "Nef+OPC",
             )
 
             # CR Box activation ratio
             crbox_ratio_nef, crbox_time_nef = calculate_crbox_ratio_with_time(
-                instruments["QuantAQB"], instruments["QuantAQK"],
-                burn_id, pm_size,
-                "timestamp_local", "timestamp_local"
+                instruments["QuantAQB"],
+                instruments["QuantAQK"],
+                burn_id,
+                pm_size,
+                "timestamp_local",
+                "timestamp_local",
             )
 
             # Hourly average ratios
             hourly_ratios_nef = calculate_hourly_average_ratios(
-                instruments["QuantAQB"], instruments["QuantAQK"],
-                burn_id, pm_size,
-                "timestamp_local", "timestamp_local"
+                instruments["QuantAQB"],
+                instruments["QuantAQK"],
+                burn_id,
+                pm_size,
+                "timestamp_local",
+                "timestamp_local",
             )
 
             # Plot Nef+OPC markers (solid)
             # Peak (triangle) - no legend
             if peak_ratio_nef is not None and peak_time_nef is not None:
                 p.scatter(
-                    [peak_time_nef], [peak_ratio_nef],
+                    [peak_time_nef],
+                    [peak_ratio_nef],
                     marker=RATIO_SHAPES["Peak"],
                     size=10,
                     color=burn_color,
@@ -771,7 +834,8 @@ def create_timeseries_plot(instruments, valid_burns, pm_size):
             # CR Box activation (square) - no legend
             if crbox_ratio_nef is not None and crbox_time_nef is not None:
                 p.scatter(
-                    [crbox_time_nef], [crbox_ratio_nef],
+                    [crbox_time_nef],
+                    [crbox_ratio_nef],
                     marker=RATIO_SHAPES["CR_Box"],
                     size=10,
                     color=burn_color,
@@ -789,7 +853,8 @@ def create_timeseries_plot(instruments, valid_burns, pm_size):
 
                 if legend_key_nef not in legend_added:
                     p.scatter(
-                        times_nef, ratios_nef,
+                        times_nef,
+                        ratios_nef,
                         marker=RATIO_SHAPES["Hourly_Avg"],
                         size=10,
                         color=burn_color,
@@ -800,7 +865,8 @@ def create_timeseries_plot(instruments, valid_burns, pm_size):
                     legend_added.add(legend_key_nef)
                 else:
                     p.scatter(
-                        times_nef, ratios_nef,
+                        times_nef,
+                        ratios_nef,
                         marker=RATIO_SHAPES["Hourly_Avg"],
                         size=10,
                         color=burn_color,
@@ -831,6 +897,7 @@ def create_timeseries_plot(instruments, valid_burns, pm_size):
 # MAIN EXECUTION
 # ============================================================================
 
+
 def main():
     """
     Main function to generate spatial variation time-series plots
@@ -856,8 +923,12 @@ def main():
     instruments = load_instrument_data()
 
     # Check if at least one instrument pair loaded successfully
-    has_opc = instruments["AeroTrakB"] is not None and instruments["AeroTrakK"] is not None
-    has_nef = instruments["QuantAQB"] is not None and instruments["QuantAQK"] is not None
+    has_opc = (
+        instruments["AeroTrakB"] is not None and instruments["AeroTrakK"] is not None
+    )
+    has_nef = (
+        instruments["QuantAQB"] is not None and instruments["QuantAQK"] is not None
+    )
 
     if not has_opc and not has_nef:
         print("\n[ERROR] No instrument pairs loaded successfully. Cannot proceed.")
@@ -868,7 +939,9 @@ def main():
     print("IDENTIFYING BURNS WITH AVAILABLE DATA")
     print("=" * 60)
     valid_burns = get_burns_with_complete_data(instruments, burn_log)
-    print(f"Found {len(valid_burns)} burns with data from at least one instrument pair:")
+    print(
+        f"Found {len(valid_burns)} burns with data from at least one instrument pair:"
+    )
     for burn_id, has_opc_pair, has_nef_pair in valid_burns:
         pac_label = PAC_LABELS.get(burn_id, "?")
         instruments_str = []
@@ -897,18 +970,18 @@ def main():
         burn_ids_str = ", ".join([burn_id for burn_id, _, _ in valid_burns])
         div_text = (
             f'<div style="font-size: 10pt; font-weight: normal;">'
-            f'<strong>Spatial Variation Analysis - Time Series</strong><br><br>'
-            f'PM Size: {pm_size}<br>'
-            f'Burns analyzed: {burn_ids_str}<br>'
-            f'Excluded burns: {", ".join(EXCLUDED_BURNS) if EXCLUDED_BURNS else "None"}<br><br>'
-            f'<strong>Marker Shape Legend:</strong><br>'
-            f'&nbsp;&nbsp;• Triangle: Peak Ratio<br>'
-            f'&nbsp;&nbsp;• Square: CR Box Activation Ratio<br>'
-            f'&nbsp;&nbsp;• Circle: Hourly Average Ratio<br>'
-            f'&nbsp;&nbsp;• Hollow marker: OPC (AeroTrak)<br>'
-            f'&nbsp;&nbsp;• Solid marker: Nef+OPC (QuantAQ)<br><br>'
-            f'<strong>Note:</strong> Only hourly average (circle) markers appear in the plot legend.<br><br>'
-            f'<hr><br>{metadata}</div>'
+            f"<strong>Spatial Variation Analysis - Time Series</strong><br><br>"
+            f"PM Size: {pm_size}<br>"
+            f"Burns analyzed: {burn_ids_str}<br>"
+            f"Excluded burns: {', '.join(EXCLUDED_BURNS) if EXCLUDED_BURNS else 'None'}<br><br>"
+            f"<strong>Marker Shape Legend:</strong><br>"
+            f"&nbsp;&nbsp;• Triangle: Peak Ratio<br>"
+            f"&nbsp;&nbsp;• Square: CR Box Activation Ratio<br>"
+            f"&nbsp;&nbsp;• Circle: Hourly Average Ratio<br>"
+            f"&nbsp;&nbsp;• Hollow marker: OPC (AeroTrak)<br>"
+            f"&nbsp;&nbsp;• Solid marker: Nef+OPC (QuantAQ)<br><br>"
+            f"<strong>Note:</strong> Only hourly average (circle) markers appear in the plot legend.<br><br>"
+            f"<hr><br>{metadata}</div>"
         )
         metadata_div = Div(text=div_text, width=900)
 
