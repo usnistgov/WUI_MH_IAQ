@@ -31,14 +31,15 @@ Output:
 import os
 import sys
 from pathlib import Path
-import pandas as pd
+
 import numpy as np
+import pandas as pd
 from bokeh.io import output_file, save
-from bokeh.models import ColumnDataSource, Range1d, Div
+from bokeh.layouts import column
+from bokeh.models import ColumnDataSource, Div, Range1d
+from bokeh.models.formatters import NumeralTickFormatter
 from bokeh.plotting import figure
 from bokeh.transform import dodge
-from bokeh.models.formatters import NumeralTickFormatter
-from bokeh.layouts import column
 from scipy.stats import f_oneway, norm, ttest_ind
 
 # Add repository root to path for portable data access
@@ -46,8 +47,10 @@ script_dir = Path(__file__).parent
 repo_root = script_dir.parent
 sys.path.insert(0, str(repo_root))
 
-from src.data_paths import get_data_root, get_common_file
-from scripts import get_script_metadata  # pylint: disable=import-error,wrong-import-position
+from scripts import (
+    get_script_metadata,  # pylint: disable=import-error,wrong-import-position
+)
+from src.data_paths import get_common_file, get_data_root
 
 # ============================================================================
 # STATISTICAL ANALYSIS CONFIGURATION
@@ -60,7 +63,7 @@ STATISTICAL_CONFIG = {
 # Define needed paths - using portable data paths
 data_root = get_data_root()
 ABSOLUTE_PATH = str(data_root / "burn_data" / "burn_calcs")
-BASE_PATH = str(get_common_file('output_figures'))
+BASE_PATH = str(get_common_file("output_figures"))
 STATS_OUTPUT_PATH = str(data_root / "burn_data")
 
 # Define the instruments
@@ -276,8 +279,16 @@ def create_baseline_corrected_data(
     pollutant_type,
     burns_to_process,
     exclude_instruments=None,
+    normalize_by_crboxes=True,
 ):
-    """Create baseline-corrected data for all instruments with centralized baseline calculator."""
+    """Create baseline-corrected data for all instruments with centralized baseline calculator.
+
+    Parameters:
+    -----------
+    normalize_by_crboxes : bool, optional (default=True)
+        If True, normalizes decay rate by dividing by the number of PACs (per-PAC rate).
+        If False, returns total decay rate without normalization.
+    """
     if exclude_instruments is None:
         exclude_instruments = []
 
@@ -298,14 +309,22 @@ def create_baseline_corrected_data(
                 ]
                 crboxes = data_by_instrument[instrument][burn]["CRboxes"]
 
-                # Baseline correction: subtract baseline and normalize by number of PACs
-                corrected_decay = (original_decay - baseline) / crboxes
-                corrected_uncertainty = original_uncertainty / crboxes
+                # Baseline correction: subtract baseline
+                if normalize_by_crboxes:
+                    # Normalize by number of PACs (per-PAC rate)
+                    corrected_decay = (original_decay - baseline) / crboxes
+                    corrected_uncertainty = original_uncertainty / crboxes
+                    normalized_crboxes = 1  # Already normalized
+                else:
+                    # Total decay rate (not normalized by PACs)
+                    corrected_decay = original_decay - baseline
+                    corrected_uncertainty = original_uncertainty
+                    normalized_crboxes = crboxes  # Keep original count
 
                 corrected_data[instrument][burn] = {
                     "decay": corrected_decay,
                     "uncertainty": corrected_uncertainty,
-                    "CRboxes": 1,  # Already normalized
+                    "CRboxes": normalized_crboxes,
                 }
 
     return corrected_data
@@ -1259,9 +1278,21 @@ def generate_statistical_summary(summary_results, summary_file_path):
 
 
 def create_transposed_bar_chart(
-    pm04_data, pm1_data, pm25_data, pm10_data, config, script_metadata
+    pm04_data,
+    pm1_data,
+    pm25_data,
+    pm10_data,
+    config,
+    script_metadata,
+    y_axis_label=None,
 ):
-    """Create transposed bar chart with PM types on x-axis and conditions as legend."""
+    """Create transposed bar chart with PM types on x-axis and conditions as legend.
+
+    Parameters:
+    -----------
+    y_axis_label : str, optional
+        Custom y-axis label. If None, uses default label.
+    """
 
     # Prepare data based on selected PM types
     pm_data_dict = {
@@ -1514,8 +1545,18 @@ def create_transposed_bar_chart(
     p.xgrid.grid_line_color = None
     p.ygrid.grid_line_color = "lightgray"
     p.ygrid.grid_line_alpha = 0.6
-    # Set y-axis range based on PM10 and chart type
-    if "PM10" in selected_pm_types:
+
+    # Set y-axis range based on PM10, chart type, and normalization
+    # Check if this is a total decay rate chart (not normalized by CRboxes)
+    is_total_decay_rate = not config.get("normalize_by_crboxes", True)
+
+    if is_total_decay_rate:
+        # Total decay rate charts need larger ranges
+        if "PM10" in selected_pm_types:
+            p.y_range = Range1d(0, 12)
+        else:
+            p.y_range = Range1d(0, 8)
+    elif "PM10" in selected_pm_types:
         # Filter count chart needs 0-4 range when PM10 is included
         if "filter_count" in config.get("filename", ""):
             p.y_range = Range1d(0, 4.5)
@@ -1525,7 +1566,14 @@ def create_transposed_bar_chart(
             p.y_range = Range1d(0, 3.5)
     else:
         p.y_range = Range1d(0, 2.5)
-    p.yaxis.axis_label = "Baseline-Corrected Decay Rate per Portable Air Cleaner (h⁻¹)"
+
+    # Set y-axis label (use custom label if provided, otherwise use default)
+    if y_axis_label is None:
+        p.yaxis.axis_label = (
+            "Baseline-Corrected Decay Rate per Portable Air Cleaner (h⁻¹)"
+        )
+    else:
+        p.yaxis.axis_label = y_axis_label
     p.yaxis.formatter = NumeralTickFormatter(format="0.0")
     p.xaxis.major_label_orientation = "horizontal"
 
@@ -1553,7 +1601,7 @@ def create_transposed_bar_chart(
 
     # Create enhanced metadata div with detailed values and text formatting
     detailed_values_text = "<br>".join(detailed_info)
-    div_text = f"""<div style="font-size: {TEXT_CONFIG['font_size']}; font-weight: {TEXT_CONFIG['html_font_weight']}; font-style: {TEXT_CONFIG['font_style']};">
+    div_text = f"""<div style="font-size: {TEXT_CONFIG["font_size"]}; font-weight: {TEXT_CONFIG["html_font_weight"]}; font-style: {TEXT_CONFIG["font_style"]};">
     <b>Detailed Values:</b><br>{detailed_values_text}<br><br>
     Baseline-corrected decay rates (baseline subtracted from all measurements)<br>
     Solid bars: New filters, Hatched bars: Used filters<br><br>
@@ -1772,6 +1820,24 @@ chart_configs = [
             "PM2.5",
         ],  # all available PM types 'PM0.4', 'PM1', 'PM2.5', 'PM10'
     },
+    {
+        "burns": ["burn4", "burn9", "burn2"],
+        "labels": {
+            "burn4": "1 Air Cleaner",
+            "burn9": "2 Air Cleaners",
+            "burn2": "4 Air Cleaners",
+        },
+        "title": "Baseline-Corrected Total Decay Rate by Number of Portable Air Cleaners",
+        "filename": "decay_bar_chart_filter_count_total.html",
+        "exclude_instruments": ["PurpleAirK"],
+        "exclude_baseline_instruments": ["AeroTrakB", "QuantAQB"],
+        "pm_types": [
+            "PM0.4",
+            "PM2.5",
+        ],  # all available PM types 'PM0.4', 'PM1', 'PM2.5', 'PM10'
+        "normalize_by_crboxes": False,  # Show total decay rate, not per-PAC
+        "y_axis_label": "Baseline-Corrected Decay Rate (h⁻¹)",
+    },
 ]
 
 # Generate charts
@@ -1784,6 +1850,9 @@ for config in chart_configs:
     pm1_processed = {}
     pm25_processed = {}
     pm10_processed = {}
+
+    # Get normalize_by_crboxes flag (default True for existing charts)
+    normalize_by_crboxes = config.get("normalize_by_crboxes", True)
 
     # Get list of instruments to use
     if config.get("use_matching_instruments", False):
@@ -1808,6 +1877,7 @@ for config in chart_configs:
             "PM0.4",
             config["burns"],
             exclude_instruments=pm04_exclude,
+            normalize_by_crboxes=normalize_by_crboxes,
         )
         if "SMPS" in pm04_corrected:
             for burn in config["burns"]:
@@ -1822,6 +1892,7 @@ for config in chart_configs:
             "PM1",
             config["burns"],
             exclude_instruments=config.get("exclude_instruments", []),
+            normalize_by_crboxes=normalize_by_crboxes,
         )
         pm1_processed = calculate_mean_data(pm1_corrected, config["burns"])
 
@@ -1833,6 +1904,7 @@ for config in chart_configs:
             "PM2.5",
             config["burns"],
             exclude_instruments=config.get("exclude_instruments", []),
+            normalize_by_crboxes=normalize_by_crboxes,
         )
         pm25_processed = calculate_mean_data(pm25_corrected, config["burns"])
 
@@ -1844,12 +1916,20 @@ for config in chart_configs:
             "PM10",
             config["burns"],
             exclude_instruments=config.get("exclude_instruments", []),
+            normalize_by_crboxes=normalize_by_crboxes,
         )
         pm10_processed = calculate_mean_data(pm10_corrected, config["burns"])
 
-    # Create chart
+    # Create chart with custom y-axis label if specified
+    y_axis_label = config.get("y_axis_label", None)
     chart = create_transposed_bar_chart(
-        pm04_processed, pm1_processed, pm25_processed, pm10_processed, config, metadata
+        pm04_processed,
+        pm1_processed,
+        pm25_processed,
+        pm10_processed,
+        config,
+        metadata,
+        y_axis_label=y_axis_label,
     )
 
     # Save chart
