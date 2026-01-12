@@ -10,20 +10,20 @@ how concentration ratios between two locations (bedroom2 vs morning room) evolve
 
 Key Features:
     - X-axis: Hours since garage door closed (-1 to 5 hours)
-    - Three ratio metrics: Peak Ratio, CR Box Activation Ratio, Hourly Average Ratios
+    - 30-minute average ratios with uncertainty (standard error) indicators
     - Compares data from two instrument types: OPC (AeroTrak) and Nef+OPC (QuantAQ)
     - Analyzes all burns with data from both instrument pairs
-    - Peak ratios plotted at mean peak time for each instrument type
-    - Hourly average ratios calculated for fixed 1-hour bins
+    - 30-minute average ratios calculated for fixed 30-minute bins
+    - Error bars show standard error of the mean for each bin
+    - Small x-axis jitter added to prevent overlapping points
     - Solid markers for Nef+OPC, hollow markers for OPC
-    - Different marker shapes for different ratio types
     - Color-coded by burn (ordered by number of CR boxes)
+    - Shaded region indicates smoke injection period (-30 min to 0 hour)
     - No curve fitting applied
 
 Input:
     - Time-series data from AeroTrak and QuantAQ instruments
-    - Peak concentration data from peak_concentrations_all_instruments_edited.xlsx
-    - Burn log with CR Box activation times
+    - Burn log with garage door closed times
 
 Output:
     - Individual HTML files for each PM size with interactive Bokeh plots
@@ -40,7 +40,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from bokeh.layouts import column
-from bokeh.models import ColumnDataSource, Div, Span
+from bokeh.models import BoxAnnotation, Div, Label, Span
 from bokeh.plotting import figure, output_file, save
 
 # ============================================================================
@@ -80,7 +80,13 @@ print(f"[OK] Burn log loaded from: {burn_log_path}")
 OUTPUT_DIR = str(get_common_file("output_figures"))
 
 # Burns to exclude (user can modify this list)
-EXCLUDED_BURNS = ["burn2", "burn5", "burn6"]  # Example: ["burn1", "burn5", "burn6"]
+EXCLUDED_BURNS = [
+    "burn2",
+    "burn3",
+    "burn4",
+    "burn5",
+    "burn6",
+]  # Example: ["burn1", "burn5", "burn6"]
 
 # PM sizes to create plots for
 PM_SIZES = ["PM1 (µg/m³)", "PM2.5 (µg/m³)", "PM10 (µg/m³)"]
@@ -115,14 +121,20 @@ PAC_LABELS = {
 # Time range for x-axis
 TIME_RANGE = (-1, 6)  # Hours since garage door closed
 
-# Hourly bins for average ratios (fixed 1-hour windows)
+# 30-minute bins for average ratios (fixed 30-minute windows)
 HOURLY_BINS = [
-    (-1, 0),
-    (0, 1),
-    (1, 2),
-    (2, 3),
-    (3, 4),
-    (4, 5),
+    (-1, -0.5),
+    (-0.5, 0),
+    (0, 0.5),
+    (0.5, 1),
+    (1, 1.5),
+    (1.5, 2),
+    (2, 2.5),
+    (2.5, 3),
+    (3, 3.5),
+    (3.5, 4),
+    (4, 4.5),
+    (4.5, 5),
 ]
 
 # Plot configuration
@@ -495,12 +507,12 @@ def calculate_hourly_average_ratios(
     bedroom_data, morning_data, burn_id, pm_size, datetime_col_b, datetime_col_m
 ):
     """
-    Calculate average ratios for fixed hourly bins
+    Calculate average ratios for fixed 30-minute bins with uncertainty
 
     Returns
     -------
     list of tuples
-        List of (ratio, time_hours) for each hourly bin
+        List of (ratio, time_hours, std_error) for each 30-minute bin
     """
     burn_info = burn_log[burn_log["Burn ID"] == burn_id]
     if burn_info.empty:
@@ -604,13 +616,14 @@ def calculate_hourly_average_ratios(
         if ratios.empty:
             continue
 
-        # Calculate average ratio
+        # Calculate average ratio and standard error
         avg_ratio = ratios.mean()
+        std_error = ratios.std() / np.sqrt(len(ratios))  # Standard error of the mean
 
-        # Use midpoint of hourly bin for plotting
+        # Use midpoint of 30-minute bin for plotting
         time_hours = (start_hour + end_hour) / 2
 
-        results.append((avg_ratio, time_hours))
+        results.append((avg_ratio, time_hours, std_error))
 
     return results
 
@@ -651,6 +664,29 @@ def create_timeseries_plot(instruments, valid_burns, pm_size):
     # Apply standard text formatting
     apply_text_formatting(p)
 
+    # Add shaded region for smoke injection period (-30 min to 0 hour)
+    smoke_injection_box = BoxAnnotation(
+        left=-0.5,  # -30 minutes = -0.5 hours
+        right=0,
+        fill_alpha=0.15,
+        fill_color="orange",
+        line_width=0,
+    )
+    p.add_layout(smoke_injection_box)
+
+    # Add label for smoke injection period
+    smoke_label = Label(
+        x=-0.25,  # Center of the shaded region
+        y=PLOT_Y_RANGE[1] * 0.95,  # Near top of plot
+        text="Smoke Injection",
+        text_align="center",
+        text_baseline="top",
+        text_font_size="9pt",
+        text_color="darkorange",
+        text_font_style="italic",
+    )
+    p.add_layout(smoke_label)
+
     # Use Plasma color palette
     from bokeh.palettes import Plasma
 
@@ -687,29 +723,7 @@ def create_timeseries_plot(instruments, valid_burns, pm_size):
 
         # Only process OPC data if this burn has the OPC pair
         if has_opc_pair:
-            # Calculate ratios for OPC (AeroTrak)
-            # Peak ratio
-            peak_ratio_opc, peak_time_opc = calculate_peak_ratio_with_time(
-                instruments["AeroTrakB"],
-                instruments["AeroTrakK"],
-                burn_id,
-                aerotrak_pm_size,
-                "Date and Time",
-                "Date and Time",
-                "OPC",
-            )
-
-            # CR Box activation ratio
-            crbox_ratio_opc, crbox_time_opc = calculate_crbox_ratio_with_time(
-                instruments["AeroTrakB"],
-                instruments["AeroTrakK"],
-                burn_id,
-                aerotrak_pm_size,
-                "Date and Time",
-                "Date and Time",
-            )
-
-            # Hourly average ratios
+            # Calculate 30-minute average ratios for OPC (AeroTrak)
             hourly_ratios_opc = calculate_hourly_average_ratios(
                 instruments["AeroTrakB"],
                 instruments["AeroTrakK"],
@@ -719,42 +733,26 @@ def create_timeseries_plot(instruments, valid_burns, pm_size):
                 "Date and Time",
             )
 
-            # Plot OPC markers (hollow)
-            # Peak (triangle) - no legend
-            if peak_ratio_opc is not None and peak_time_opc is not None:
-                p.scatter(
-                    [peak_time_opc],
-                    [peak_ratio_opc],
-                    marker=RATIO_SHAPES["Peak"],
-                    size=10,
-                    color=burn_color,
-                    fill_alpha=0,  # Hollow
-                    line_width=2,
-                )
-
-            # CR Box activation (square) - no legend
-            if crbox_ratio_opc is not None and crbox_time_opc is not None:
-                p.scatter(
-                    [crbox_time_opc],
-                    [crbox_ratio_opc],
-                    marker=RATIO_SHAPES["CR_Box"],
-                    size=10,
-                    color=burn_color,
-                    fill_alpha=0,  # Hollow
-                    line_width=2,
-                )
-
-            # Hourly average (circle) - ADD TO LEGEND only if not already added for this PAC
+            # Plot OPC markers (hollow) with error bars
+            # 30-minute average (circle) - ADD TO LEGEND only if not already added for this PAC
             if hourly_ratios_opc:
-                times_opc = [t for _, t in hourly_ratios_opc]
-                ratios_opc = [r for r, _ in hourly_ratios_opc]
+                # Extract data with proper unpacking (ratio, time, std_error)
+                ratios_opc = [r for r, _, _ in hourly_ratios_opc]
+                times_opc = [t for _, t, _ in hourly_ratios_opc]
+                errors_opc = [e for _, _, e in hourly_ratios_opc]
+
+                # Add small random jitter to x-axis to avoid overlapping points
+                np.random.seed(hash(burn_id) % 2**32)  # Reproducible jitter per burn
+                jitter = np.random.uniform(-0.05, 0.05, len(times_opc))
+                times_jittered_opc = [t + j for t, j in zip(times_opc, jitter)]
 
                 # Create legend key for OPC
                 legend_key_opc = f"{pac_label} PAC - OPC"
 
                 if legend_key_opc not in legend_added:
+                    # Plot with error bars
                     p.scatter(
-                        times_opc,
+                        times_jittered_opc,
                         ratios_opc,
                         marker=RATIO_SHAPES["Hourly_Avg"],
                         size=10,
@@ -763,10 +761,20 @@ def create_timeseries_plot(instruments, valid_burns, pm_size):
                         line_width=2,
                         legend_label=legend_key_opc,
                     )
+                    # Add error bars (whiskers)
+                    for x, y, err in zip(times_jittered_opc, ratios_opc, errors_opc):
+                        p.line(
+                            [x, x],
+                            [y - err, y + err],
+                            color=burn_color,
+                            line_width=1.5,
+                            alpha=0.6,
+                        )
                     legend_added.add(legend_key_opc)
                 else:
+                    # Plot with error bars
                     p.scatter(
-                        times_opc,
+                        times_jittered_opc,
                         ratios_opc,
                         marker=RATIO_SHAPES["Hourly_Avg"],
                         size=10,
@@ -774,32 +782,19 @@ def create_timeseries_plot(instruments, valid_burns, pm_size):
                         fill_alpha=0,  # Hollow
                         line_width=2,
                     )
+                    # Add error bars (whiskers)
+                    for x, y, err in zip(times_jittered_opc, ratios_opc, errors_opc):
+                        p.line(
+                            [x, x],
+                            [y - err, y + err],
+                            color=burn_color,
+                            line_width=1.5,
+                            alpha=0.6,
+                        )
 
         # Only process Nef+OPC data if this burn has the Nef+OPC pair
         if has_nef_pair:
-            # Calculate ratios for Nef+OPC (QuantAQ)
-            # Peak ratio
-            peak_ratio_nef, peak_time_nef = calculate_peak_ratio_with_time(
-                instruments["QuantAQB"],
-                instruments["QuantAQK"],
-                burn_id,
-                pm_size,
-                "timestamp_local",
-                "timestamp_local",
-                "Nef+OPC",
-            )
-
-            # CR Box activation ratio
-            crbox_ratio_nef, crbox_time_nef = calculate_crbox_ratio_with_time(
-                instruments["QuantAQB"],
-                instruments["QuantAQK"],
-                burn_id,
-                pm_size,
-                "timestamp_local",
-                "timestamp_local",
-            )
-
-            # Hourly average ratios
+            # Calculate 30-minute average ratios for Nef+OPC (QuantAQ)
             hourly_ratios_nef = calculate_hourly_average_ratios(
                 instruments["QuantAQB"],
                 instruments["QuantAQK"],
@@ -809,42 +804,29 @@ def create_timeseries_plot(instruments, valid_burns, pm_size):
                 "timestamp_local",
             )
 
-            # Plot Nef+OPC markers (solid)
-            # Peak (triangle) - no legend
-            if peak_ratio_nef is not None and peak_time_nef is not None:
-                p.scatter(
-                    [peak_time_nef],
-                    [peak_ratio_nef],
-                    marker=RATIO_SHAPES["Peak"],
-                    size=10,
-                    color=burn_color,
-                    fill_alpha=1.0,  # Solid
-                    line_width=2,
-                )
-
-            # CR Box activation (square) - no legend
-            if crbox_ratio_nef is not None and crbox_time_nef is not None:
-                p.scatter(
-                    [crbox_time_nef],
-                    [crbox_ratio_nef],
-                    marker=RATIO_SHAPES["CR_Box"],
-                    size=10,
-                    color=burn_color,
-                    fill_alpha=1.0,  # Solid
-                    line_width=2,
-                )
-
-            # Hourly average (circle) - ADD TO LEGEND only if not already added for this PAC
+            # Plot Nef+OPC markers (solid) with error bars
+            # 30-minute average (circle) - ADD TO LEGEND only if not already added for this PAC
             if hourly_ratios_nef:
-                times_nef = [t for _, t in hourly_ratios_nef]
-                ratios_nef = [r for r, _ in hourly_ratios_nef]
+                # Extract data with proper unpacking (ratio, time, std_error)
+                ratios_nef = [r for r, _, _ in hourly_ratios_nef]
+                times_nef = [t for _, t, _ in hourly_ratios_nef]
+                errors_nef = [e for _, _, e in hourly_ratios_nef]
+
+                # Add small random jitter to x-axis to avoid overlapping points
+                # Use different seed offset for Nef+OPC to ensure different jitter than OPC
+                np.random.seed(
+                    (hash(burn_id) + 1) % 2**32
+                )  # Reproducible jitter per burn
+                jitter = np.random.uniform(-0.05, 0.05, len(times_nef))
+                times_jittered_nef = [t + j for t, j in zip(times_nef, jitter)]
 
                 # Create legend key for Nef+OPC
                 legend_key_nef = f"{pac_label} PAC - Nef+OPC"
 
                 if legend_key_nef not in legend_added:
+                    # Plot with error bars
                     p.scatter(
-                        times_nef,
+                        times_jittered_nef,
                         ratios_nef,
                         marker=RATIO_SHAPES["Hourly_Avg"],
                         size=10,
@@ -853,10 +835,20 @@ def create_timeseries_plot(instruments, valid_burns, pm_size):
                         line_width=2,
                         legend_label=legend_key_nef,
                     )
+                    # Add error bars (whiskers)
+                    for x, y, err in zip(times_jittered_nef, ratios_nef, errors_nef):
+                        p.line(
+                            [x, x],
+                            [y - err, y + err],
+                            color=burn_color,
+                            line_width=1.5,
+                            alpha=0.6,
+                        )
                     legend_added.add(legend_key_nef)
                 else:
+                    # Plot with error bars
                     p.scatter(
-                        times_nef,
+                        times_jittered_nef,
                         ratios_nef,
                         marker=RATIO_SHAPES["Hourly_Avg"],
                         size=10,
@@ -864,6 +856,15 @@ def create_timeseries_plot(instruments, valid_burns, pm_size):
                         fill_alpha=1.0,  # Solid
                         line_width=2,
                     )
+                    # Add error bars (whiskers)
+                    for x, y, err in zip(times_jittered_nef, ratios_nef, errors_nef):
+                        p.line(
+                            [x, x],
+                            [y - err, y + err],
+                            color=burn_color,
+                            line_width=1.5,
+                            alpha=0.6,
+                        )
 
     # Add horizontal line at y=1.0 (perfect spatial uniformity)
     uniform_line = Span(
@@ -875,6 +876,16 @@ def create_timeseries_plot(instruments, valid_burns, pm_size):
         line_alpha=0.7,
     )
     p.add_layout(uniform_line)
+
+    # Add vertical line at x=0 (garage door closed time)
+    zero_line = Span(
+        location=0,
+        dimension="height",
+        line_color="black",
+        line_width=1,
+        line_alpha=0.7,
+    )
+    p.add_layout(zero_line)
 
     # Customize legend
     p.legend.location = "top_right"
@@ -965,13 +976,14 @@ def main():
             f"PM Size: {pm_size}<br>"
             f"Burns analyzed: {burn_ids_str}<br>"
             f"Excluded burns: {', '.join(EXCLUDED_BURNS) if EXCLUDED_BURNS else 'None'}<br><br>"
-            f"<strong>Marker Shape Legend:</strong><br>"
-            f"&nbsp;&nbsp;• Triangle: Peak Ratio<br>"
-            f"&nbsp;&nbsp;• Square: CR Box Activation Ratio<br>"
-            f"&nbsp;&nbsp;• Circle: Hourly Average Ratio<br>"
-            f"&nbsp;&nbsp;• Hollow marker: OPC (AeroTrak)<br>"
-            f"&nbsp;&nbsp;• Solid marker: Nef+OPC (QuantAQ)<br><br>"
-            f"<strong>Note:</strong> Only hourly average (circle) markers appear in the plot legend.<br><br>"
+            f"<strong>Plot Features:</strong><br>"
+            f"&nbsp;&nbsp;• 30-minute average concentration ratios (circle markers)<br>"
+            f"&nbsp;&nbsp;• Error bars show standard error of the mean<br>"
+            f"&nbsp;&nbsp;• Hollow markers: OPC (AeroTrak)<br>"
+            f"&nbsp;&nbsp;• Solid markers: Nef+OPC (QuantAQ)<br>"
+            f"&nbsp;&nbsp;• Orange shaded region: Smoke injection period (-30 min to 0 hour)<br>"
+            f"&nbsp;&nbsp;• Small random x-axis jitter applied to reduce overlap<br><br>"
+            f"<strong>Note:</strong> Click legend entries to hide/show data series.<br><br>"
             f"<hr><br>{metadata}</div>"
         )
         metadata_div = Div(text=div_text, width=900)
