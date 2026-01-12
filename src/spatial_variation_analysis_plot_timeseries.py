@@ -93,9 +93,23 @@ RATIO_TYPES = ["Peak", "CR_Box", "Hourly_Avg"]
 
 # Marker shapes for ratio types
 RATIO_SHAPES = {
-    "Peak": "circle",
+    "Peak": "triangle",
     "CR_Box": "square",
-    "Hourly_Avg": "triangle",
+    "Hourly_Avg": "circle",
+}
+
+# PAC (Portable Air Cleaner) labels for each burn
+PAC_LABELS = {
+    "burn1": "0",
+    "burn2": "4N",
+    "burn3": "1U",
+    "burn4": "1N",
+    "burn5": "0",
+    "burn6": "1N",
+    "burn7": "2AN",
+    "burn8": "2AU",
+    "burn9": "2N",
+    "burn10": "2U",
 }
 
 # Time range for x-axis
@@ -212,7 +226,7 @@ def load_peak_times():
 
 def get_burns_with_complete_data(instruments, burn_log):
     """
-    Identify burns that have data from both OPC and Nef+OPC pairs
+    Identify burns that have data from at least one instrument pair (OPC or Nef+OPC)
 
     Parameters
     ----------
@@ -224,7 +238,7 @@ def get_burns_with_complete_data(instruments, burn_log):
     Returns
     -------
     list
-        List of burn IDs with complete data, ordered by number of CR boxes
+        List of burn IDs with at least one instrument pair, ordered by PAC configuration
     """
     valid_burns = []
 
@@ -235,35 +249,50 @@ def get_burns_with_complete_data(instruments, burn_log):
         if burn_id in EXCLUDED_BURNS:
             continue
 
-        # Check if CR Box was used
+        # Check if CR Box was used (skip burn5 and burn1 which have 0 PACs)
         if pd.isna(row["CR Box on"]) or row["CR Box on"] == "n/a":
             continue
 
-        # Check if all four instruments have data for this burn
         burn_date = pd.to_datetime(row["Date"]).date()
-        has_all_data = True
 
-        for inst_name in ["AeroTrakB", "AeroTrakK", "QuantAQB", "QuantAQK"]:
-            if instruments[inst_name] is None:
-                has_all_data = False
-                break
+        # Check if at least one instrument pair has data
+        has_opc_pair = False
+        has_nef_pair = False
 
-            inst_data = instruments[inst_name]
-            if "Date" in inst_data.columns:
-                burn_data = inst_data[inst_data["Date"] == burn_date]
-                if burn_data.empty:
-                    has_all_data = False
-                    break
+        # Check OPC pair (AeroTrak)
+        if (instruments["AeroTrakB"] is not None and
+            instruments["AeroTrakK"] is not None):
+            aerotrak_b_data = instruments["AeroTrakB"][
+                instruments["AeroTrakB"]["Date"] == burn_date
+            ]
+            aerotrak_k_data = instruments["AeroTrakK"][
+                instruments["AeroTrakK"]["Date"] == burn_date
+            ]
+            if not aerotrak_b_data.empty and not aerotrak_k_data.empty:
+                has_opc_pair = True
 
-        if has_all_data:
-            # Get number of CR boxes for ordering
-            n_crboxes = row.get("# CR Boxes", 0)
-            valid_burns.append((burn_id, n_crboxes))
+        # Check Nef+OPC pair (QuantAQ)
+        if (instruments["QuantAQB"] is not None and
+            instruments["QuantAQK"] is not None):
+            quantaq_b_data = instruments["QuantAQB"][
+                instruments["QuantAQB"]["Date"] == burn_date
+            ]
+            quantaq_k_data = instruments["QuantAQK"][
+                instruments["QuantAQK"]["Date"] == burn_date
+            ]
+            if not quantaq_b_data.empty and not quantaq_k_data.empty:
+                has_nef_pair = True
 
-    # Sort by number of CR boxes
+        # Include burn if at least one pair has data
+        if has_opc_pair or has_nef_pair:
+            # Get PAC label for ordering
+            pac_label = PAC_LABELS.get(burn_id, burn_id)
+            valid_burns.append((burn_id, pac_label, has_opc_pair, has_nef_pair))
+
+    # Sort by PAC label to maintain consistent ordering
     valid_burns.sort(key=lambda x: x[1])
 
-    return [burn_id for burn_id, _ in valid_burns]
+    return [(burn_id, has_opc, has_nef) for burn_id, _, has_opc, has_nef in valid_burns]
 
 
 def calculate_peak_ratio_with_time(
@@ -579,7 +608,7 @@ def create_timeseries_plot(instruments, valid_burns, pm_size):
     instruments : dict
         Dictionary of instrument DataFrames
     valid_burns : list
-        List of burn IDs with complete data (ordered by # CR boxes)
+        List of tuples (burn_id, has_opc, has_nef) with available data
     pm_size : str
         PM size label (e.g., 'PM2.5 (µg/m³)')
 
@@ -610,134 +639,174 @@ def create_timeseries_plot(instruments, valid_burns, pm_size):
         # Repeat colors if more than 20 burns
         colors = (Category20[20] * ((n_burns // 20) + 1))[:n_burns]
 
-    burn_colors = dict(zip(valid_burns, colors))
+    # Create color mapping using burn_id only
+    burn_ids = [burn_id for burn_id, _, _ in valid_burns]
+    burn_colors = dict(zip(burn_ids, colors))
 
     # Get appropriate PM size for AeroTrak
     aerotrak_pm_size = AEROTRAK_PM_SIZE_FOR_PM25 if pm_size == "PM2.5 (µg/m³)" else pm_size
 
+    # Track which PAC labels we've added to legend (only show circle markers)
+    legend_added = set()
+
     # Process each burn
-    for burn_id in valid_burns:
+    for burn_id, has_opc_pair, has_nef_pair in valid_burns:
         burn_color = burn_colors[burn_id]
 
-        # Get burn info for CR box count (for legend)
-        burn_info = burn_log[burn_log["Burn ID"] == burn_id]
-        n_crboxes = burn_info["# CR Boxes"].iloc[0] if "# CR Boxes" in burn_info.columns else "?"
+        # Get PAC label for legend
+        pac_label = PAC_LABELS.get(burn_id, "?")
 
-        # Calculate ratios for OPC (AeroTrak)
-        # Peak ratio
-        peak_ratio_opc, peak_time_opc = calculate_peak_ratio_with_time(
-            instruments["AeroTrakB"], instruments["AeroTrakK"],
-            burn_id, aerotrak_pm_size,
-            "Date and Time", "Date and Time", "OPC"
-        )
-
-        # CR Box activation ratio
-        crbox_ratio_opc, crbox_time_opc = calculate_crbox_ratio_with_time(
-            instruments["AeroTrakB"], instruments["AeroTrakK"],
-            burn_id, aerotrak_pm_size,
-            "Date and Time", "Date and Time"
-        )
-
-        # Hourly average ratios
-        hourly_ratios_opc = calculate_hourly_average_ratios(
-            instruments["AeroTrakB"], instruments["AeroTrakK"],
-            burn_id, aerotrak_pm_size,
-            "Date and Time", "Date and Time"
-        )
-
-        # Calculate ratios for Nef+OPC (QuantAQ)
-        # Peak ratio
-        peak_ratio_nef, peak_time_nef = calculate_peak_ratio_with_time(
-            instruments["QuantAQB"], instruments["QuantAQK"],
-            burn_id, pm_size,
-            "timestamp_local", "timestamp_local", "Nef+OPC"
-        )
-
-        # CR Box activation ratio
-        crbox_ratio_nef, crbox_time_nef = calculate_crbox_ratio_with_time(
-            instruments["QuantAQB"], instruments["QuantAQK"],
-            burn_id, pm_size,
-            "timestamp_local", "timestamp_local"
-        )
-
-        # Hourly average ratios
-        hourly_ratios_nef = calculate_hourly_average_ratios(
-            instruments["QuantAQB"], instruments["QuantAQK"],
-            burn_id, pm_size,
-            "timestamp_local", "timestamp_local"
-        )
-
-        # Plot OPC markers (hollow)
-        if peak_ratio_opc is not None and peak_time_opc is not None:
-            p.scatter(
-                [peak_time_opc], [peak_ratio_opc],
-                marker=RATIO_SHAPES["Peak"],
-                size=10,
-                color=burn_color,
-                fill_alpha=0,  # Hollow
-                line_width=2,
-                legend_label=f"{burn_id} ({n_crboxes} CR Box{'es' if n_crboxes != 1 else ''}) - OPC",
+        # Only process OPC data if this burn has the OPC pair
+        if has_opc_pair:
+            # Calculate ratios for OPC (AeroTrak)
+            # Peak ratio
+            peak_ratio_opc, peak_time_opc = calculate_peak_ratio_with_time(
+                instruments["AeroTrakB"], instruments["AeroTrakK"],
+                burn_id, aerotrak_pm_size,
+                "Date and Time", "Date and Time", "OPC"
             )
 
-        if crbox_ratio_opc is not None and crbox_time_opc is not None:
-            p.scatter(
-                [crbox_time_opc], [crbox_ratio_opc],
-                marker=RATIO_SHAPES["CR_Box"],
-                size=10,
-                color=burn_color,
-                fill_alpha=0,  # Hollow
-                line_width=2,
-                legend_label=f"{burn_id} ({n_crboxes} CR Box{'es' if n_crboxes != 1 else ''}) - OPC",
+            # CR Box activation ratio
+            crbox_ratio_opc, crbox_time_opc = calculate_crbox_ratio_with_time(
+                instruments["AeroTrakB"], instruments["AeroTrakK"],
+                burn_id, aerotrak_pm_size,
+                "Date and Time", "Date and Time"
             )
 
-        if hourly_ratios_opc:
-            times_opc = [t for _, t in hourly_ratios_opc]
-            ratios_opc = [r for r, _ in hourly_ratios_opc]
-            p.scatter(
-                times_opc, ratios_opc,
-                marker=RATIO_SHAPES["Hourly_Avg"],
-                size=10,
-                color=burn_color,
-                fill_alpha=0,  # Hollow
-                line_width=2,
-                legend_label=f"{burn_id} ({n_crboxes} CR Box{'es' if n_crboxes != 1 else ''}) - OPC",
+            # Hourly average ratios
+            hourly_ratios_opc = calculate_hourly_average_ratios(
+                instruments["AeroTrakB"], instruments["AeroTrakK"],
+                burn_id, aerotrak_pm_size,
+                "Date and Time", "Date and Time"
             )
 
-        # Plot Nef+OPC markers (solid)
-        if peak_ratio_nef is not None and peak_time_nef is not None:
-            p.scatter(
-                [peak_time_nef], [peak_ratio_nef],
-                marker=RATIO_SHAPES["Peak"],
-                size=10,
-                color=burn_color,
-                fill_alpha=1.0,  # Solid
-                line_width=2,
-                legend_label=f"{burn_id} ({n_crboxes} CR Box{'es' if n_crboxes != 1 else ''}) - Nef+OPC",
+            # Plot OPC markers (hollow)
+            # Peak (triangle) - no legend
+            if peak_ratio_opc is not None and peak_time_opc is not None:
+                p.scatter(
+                    [peak_time_opc], [peak_ratio_opc],
+                    marker=RATIO_SHAPES["Peak"],
+                    size=10,
+                    color=burn_color,
+                    fill_alpha=0,  # Hollow
+                    line_width=2,
+                )
+
+            # CR Box activation (square) - no legend
+            if crbox_ratio_opc is not None and crbox_time_opc is not None:
+                p.scatter(
+                    [crbox_time_opc], [crbox_ratio_opc],
+                    marker=RATIO_SHAPES["CR_Box"],
+                    size=10,
+                    color=burn_color,
+                    fill_alpha=0,  # Hollow
+                    line_width=2,
+                )
+
+            # Hourly average (circle) - ADD TO LEGEND only if not already added for this PAC
+            if hourly_ratios_opc:
+                times_opc = [t for _, t in hourly_ratios_opc]
+                ratios_opc = [r for r, _ in hourly_ratios_opc]
+
+                # Create legend key for OPC
+                legend_key_opc = f"{pac_label} PAC - OPC"
+
+                if legend_key_opc not in legend_added:
+                    p.scatter(
+                        times_opc, ratios_opc,
+                        marker=RATIO_SHAPES["Hourly_Avg"],
+                        size=10,
+                        color=burn_color,
+                        fill_alpha=0,  # Hollow
+                        line_width=2,
+                        legend_label=legend_key_opc,
+                    )
+                    legend_added.add(legend_key_opc)
+                else:
+                    p.scatter(
+                        times_opc, ratios_opc,
+                        marker=RATIO_SHAPES["Hourly_Avg"],
+                        size=10,
+                        color=burn_color,
+                        fill_alpha=0,  # Hollow
+                        line_width=2,
+                    )
+
+        # Only process Nef+OPC data if this burn has the Nef+OPC pair
+        if has_nef_pair:
+            # Calculate ratios for Nef+OPC (QuantAQ)
+            # Peak ratio
+            peak_ratio_nef, peak_time_nef = calculate_peak_ratio_with_time(
+                instruments["QuantAQB"], instruments["QuantAQK"],
+                burn_id, pm_size,
+                "timestamp_local", "timestamp_local", "Nef+OPC"
             )
 
-        if crbox_ratio_nef is not None and crbox_time_nef is not None:
-            p.scatter(
-                [crbox_time_nef], [crbox_ratio_nef],
-                marker=RATIO_SHAPES["CR_Box"],
-                size=10,
-                color=burn_color,
-                fill_alpha=1.0,  # Solid
-                line_width=2,
-                legend_label=f"{burn_id} ({n_crboxes} CR Box{'es' if n_crboxes != 1 else ''}) - Nef+OPC",
+            # CR Box activation ratio
+            crbox_ratio_nef, crbox_time_nef = calculate_crbox_ratio_with_time(
+                instruments["QuantAQB"], instruments["QuantAQK"],
+                burn_id, pm_size,
+                "timestamp_local", "timestamp_local"
             )
 
-        if hourly_ratios_nef:
-            times_nef = [t for _, t in hourly_ratios_nef]
-            ratios_nef = [r for r, _ in hourly_ratios_nef]
-            p.scatter(
-                times_nef, ratios_nef,
-                marker=RATIO_SHAPES["Hourly_Avg"],
-                size=10,
-                color=burn_color,
-                fill_alpha=1.0,  # Solid
-                line_width=2,
-                legend_label=f"{burn_id} ({n_crboxes} CR Box{'es' if n_crboxes != 1 else ''}) - Nef+OPC",
+            # Hourly average ratios
+            hourly_ratios_nef = calculate_hourly_average_ratios(
+                instruments["QuantAQB"], instruments["QuantAQK"],
+                burn_id, pm_size,
+                "timestamp_local", "timestamp_local"
             )
+
+            # Plot Nef+OPC markers (solid)
+            # Peak (triangle) - no legend
+            if peak_ratio_nef is not None and peak_time_nef is not None:
+                p.scatter(
+                    [peak_time_nef], [peak_ratio_nef],
+                    marker=RATIO_SHAPES["Peak"],
+                    size=10,
+                    color=burn_color,
+                    fill_alpha=1.0,  # Solid
+                    line_width=2,
+                )
+
+            # CR Box activation (square) - no legend
+            if crbox_ratio_nef is not None and crbox_time_nef is not None:
+                p.scatter(
+                    [crbox_time_nef], [crbox_ratio_nef],
+                    marker=RATIO_SHAPES["CR_Box"],
+                    size=10,
+                    color=burn_color,
+                    fill_alpha=1.0,  # Solid
+                    line_width=2,
+                )
+
+            # Hourly average (circle) - ADD TO LEGEND only if not already added for this PAC
+            if hourly_ratios_nef:
+                times_nef = [t for _, t in hourly_ratios_nef]
+                ratios_nef = [r for r, _ in hourly_ratios_nef]
+
+                # Create legend key for Nef+OPC
+                legend_key_nef = f"{pac_label} PAC - Nef+OPC"
+
+                if legend_key_nef not in legend_added:
+                    p.scatter(
+                        times_nef, ratios_nef,
+                        marker=RATIO_SHAPES["Hourly_Avg"],
+                        size=10,
+                        color=burn_color,
+                        fill_alpha=1.0,  # Solid
+                        line_width=2,
+                        legend_label=legend_key_nef,
+                    )
+                    legend_added.add(legend_key_nef)
+                else:
+                    p.scatter(
+                        times_nef, ratios_nef,
+                        marker=RATIO_SHAPES["Hourly_Avg"],
+                        size=10,
+                        color=burn_color,
+                        fill_alpha=1.0,  # Solid
+                        line_width=2,
+                    )
 
     # Add horizontal line at y=1.0 (perfect spatial uniformity)
     uniform_line = Span(
@@ -786,21 +855,28 @@ def main():
     # Load instrument data
     instruments = load_instrument_data()
 
-    # Check if all instruments loaded successfully
-    if any(instruments[inst] is None for inst in ["AeroTrakB", "AeroTrakK", "QuantAQB", "QuantAQK"]):
-        print("\n[ERROR] Not all instruments loaded successfully. Cannot proceed.")
+    # Check if at least one instrument pair loaded successfully
+    has_opc = instruments["AeroTrakB"] is not None and instruments["AeroTrakK"] is not None
+    has_nef = instruments["QuantAQB"] is not None and instruments["QuantAQK"] is not None
+
+    if not has_opc and not has_nef:
+        print("\n[ERROR] No instrument pairs loaded successfully. Cannot proceed.")
         return
 
-    # Get burns with complete data
+    # Get burns with available data
     print("\n" + "=" * 60)
-    print("IDENTIFYING BURNS WITH COMPLETE DATA")
+    print("IDENTIFYING BURNS WITH AVAILABLE DATA")
     print("=" * 60)
     valid_burns = get_burns_with_complete_data(instruments, burn_log)
-    print(f"Found {len(valid_burns)} burns with data from both OPC and Nef+OPC pairs:")
-    for burn_id in valid_burns:
-        burn_info = burn_log[burn_log["Burn ID"] == burn_id]
-        n_crboxes = burn_info["# CR Boxes"].iloc[0] if "# CR Boxes" in burn_info.columns else "?"
-        print(f"  {burn_id}: {n_crboxes} CR Box(es)")
+    print(f"Found {len(valid_burns)} burns with data from at least one instrument pair:")
+    for burn_id, has_opc_pair, has_nef_pair in valid_burns:
+        pac_label = PAC_LABELS.get(burn_id, "?")
+        instruments_str = []
+        if has_opc_pair:
+            instruments_str.append("OPC")
+        if has_nef_pair:
+            instruments_str.append("Nef+OPC")
+        print(f"  {burn_id} ({pac_label} PAC): {', '.join(instruments_str)}")
 
     if not valid_burns:
         print("\n[ERROR] No burns with complete data found. Cannot proceed.")
@@ -818,18 +894,20 @@ def main():
         p = create_timeseries_plot(instruments, valid_burns, pm_size)
 
         # Create metadata div
+        burn_ids_str = ", ".join([burn_id for burn_id, _, _ in valid_burns])
         div_text = (
             f'<div style="font-size: 10pt; font-weight: normal;">'
             f'<strong>Spatial Variation Analysis - Time Series</strong><br><br>'
             f'PM Size: {pm_size}<br>'
-            f'Burns analyzed: {", ".join(valid_burns)}<br>'
+            f'Burns analyzed: {burn_ids_str}<br>'
             f'Excluded burns: {", ".join(EXCLUDED_BURNS) if EXCLUDED_BURNS else "None"}<br><br>'
-            f'<strong>Marker Legend:</strong><br>'
-            f'&nbsp;&nbsp;• Circle: Peak Ratio<br>'
+            f'<strong>Marker Shape Legend:</strong><br>'
+            f'&nbsp;&nbsp;• Triangle: Peak Ratio<br>'
             f'&nbsp;&nbsp;• Square: CR Box Activation Ratio<br>'
-            f'&nbsp;&nbsp;• Triangle: Hourly Average Ratio<br>'
-            f'&nbsp;&nbsp;• Hollow: OPC (AeroTrak)<br>'
-            f'&nbsp;&nbsp;• Solid: Nef+OPC (QuantAQ)<br><br>'
+            f'&nbsp;&nbsp;• Circle: Hourly Average Ratio<br>'
+            f'&nbsp;&nbsp;• Hollow marker: OPC (AeroTrak)<br>'
+            f'&nbsp;&nbsp;• Solid marker: Nef+OPC (QuantAQ)<br><br>'
+            f'<strong>Note:</strong> Only hourly average (circle) markers appear in the plot legend.<br><br>'
             f'<hr><br>{metadata}</div>'
         )
         metadata_div = Div(text=div_text, width=900)
