@@ -651,29 +651,20 @@ def create_timeseries_plot(instruments, valid_burns, pm_size):
     # Apply standard text formatting
     apply_text_formatting(p)
 
-    # Custom color palette matching presentation theme
-    custom_palette = [
-        "#003f5c",
-        "#1d4772",
-        "#404e84",
-        "#665191",
-        "#8d5196",
-        "#b35093",
-        "#d45087",
-        "#f3678f",  # Additional colors in similar style
-        "#ff8590",
-        "#ffa38f",
-        "#ffc08a",
-        "#ffdc82",
-    ]
+    # Use Plasma color palette
+    from bokeh.palettes import Plasma
 
-    # Generate color list for burns
+    # Generate color list for burns using Plasma palette
     n_burns = len(valid_burns)
-    if n_burns <= len(custom_palette):
-        colors = custom_palette[:n_burns]
+
+    # Plasma palettes are available in sizes 3-256
+    if n_burns <= 3:
+        colors = Plasma[3][:n_burns]
+    elif n_burns <= 256:
+        colors = Plasma[n_burns]
     else:
-        # Repeat palette if more burns than colors
-        colors = (custom_palette * ((n_burns // len(custom_palette)) + 1))[:n_burns]
+        # If more than 256 burns, repeat the 256-color palette
+        colors = (Plasma[256] * ((n_burns // 256) + 1))[:n_burns]
 
     # Create color mapping using burn_id only
     burn_ids = [burn_id for burn_id, _, _ in valid_burns]
