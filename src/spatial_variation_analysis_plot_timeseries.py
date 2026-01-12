@@ -119,7 +119,7 @@ PAC_LABELS = {
 }
 
 # Time range for x-axis
-TIME_RANGE = (-1, 6)  # Hours since garage door closed
+TIME_RANGE = (-1, 4)  # Hours since garage door closed
 
 # 30-minute bins for average ratios (fixed 30-minute windows)
 HOURLY_BINS = [
@@ -135,10 +135,12 @@ HOURLY_BINS = [
     (3.5, 4),
     (4, 4.5),
     (4.5, 5),
+    (5, 5.5),
+    (5.5, 6),
 ]
 
 # Plot configuration
-PLOT_Y_RANGE = (0, 2.0)  # Y-axis range for ratio plots
+PLOT_Y_RANGE = (0, 1.5)  # Y-axis range for ratio plots
 
 # ============================================================================
 # INSTRUMENT DATA LOADING
@@ -658,7 +660,7 @@ def create_timeseries_plot(instruments, valid_burns, pm_size):
         x_range=(TIME_RANGE[0], TIME_RANGE[1]),
         y_range=(PLOT_Y_RANGE[0], PLOT_Y_RANGE[1]),
         width=900,
-        height=600,
+        height=800,
     )
 
     # Apply standard text formatting
@@ -888,7 +890,7 @@ def create_timeseries_plot(instruments, valid_burns, pm_size):
     p.add_layout(zero_line)
 
     # Customize legend
-    p.legend.location = "top_right"
+    p.legend.location = "bottom_left"
     p.legend.click_policy = "hide"
     p.legend.label_text_font_size = "8pt"
 
