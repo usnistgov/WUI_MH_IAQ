@@ -2,24 +2,31 @@
 import os
 import pandas as pd
 import numpy as np
-import datetime
+from pathlib import Path
 from bokeh.plotting import figure, show
 from bokeh.io import output_notebook, output_file
 from bokeh.models import ColumnDataSource, Div
 from bokeh.layouts import column
 
+# Import data path resolver and metadata utilities
+import sys
+sys.path.insert(0, str(Path(__file__).parent))
+from data_paths import get_common_file, get_instrument_path
+
+# Import metadata_utils from scripts folder
+scripts_path = Path(__file__).parent.parent / 'scripts'
+if str(scripts_path) not in sys.path:
+    sys.path.insert(0, str(scripts_path))
+from metadata_utils import get_script_metadata
+
 # Set output to display plots in the notebook
 output_notebook()
-
-# Set the absolute path for the dataset
-absolute_path = 'C:/Users/nml/OneDrive - NIST/Documents/NIST/WUI_smoke/'
-os.chdir(absolute_path)
 
 # Variable for the dataset to be processed
 dataset = 'MiniAMS'  # Change this variable as needed
 
 # Load burn log once
-burn_log_path = './burn_log.xlsx'
+burn_log_path = get_common_file('burn_log')
 burn_log = pd.read_excel(burn_log_path, sheet_name='Sheet2')
 
 # Declare global variable burn_calc
@@ -57,10 +64,33 @@ POLLUTANT_COLORS.update(SMPS_BIN_COLORS)
 # Update the POLLUTANT_COLORS dictionary with Mini-AMS species colors
 POLLUTANT_COLORS.update(MINIAMS_SPECIES_COLORS)
 
+# Helper function to build file paths from data_paths resolver
+def get_instrument_file_path(instrument_key, filename=None):
+    """
+    Get the file path for an instrument using the data_paths resolver.
+
+    Parameters
+    ----------
+    instrument_key : str
+        Key from data_config.json instruments section
+    filename : str, optional
+        Specific filename to append to instrument path
+
+    Returns
+    -------
+    Path or str
+        Full path to the instrument data file or folder
+    """
+    instrument_path = get_instrument_path(instrument_key)
+    if filename:
+        return instrument_path / filename
+    return instrument_path
+
 # Define instrument configurations
 INSTRUMENT_CONFIG = {
     'AeroTrakB': {
-        'file_path': './burn_data/aerotraks/bedroom2/all_data.xlsx',
+        'instrument_key': 'aerotrak_bedroom',
+        'filename': 'all_data.xlsx',
         'process_function': 'process_aerotrak_data',
         'time_shift': 2.16,
         'process_pollutants': ['PM0.5 (µg/m³)', 'PM1 (µg/m³)', 'PM3 (µg/m³)', 'PM5 (µg/m³)', 'PM10 (µg/m³)', 'PM25 (µg/m³)'],
@@ -81,7 +111,8 @@ INSTRUMENT_CONFIG = {
         }
     },
     'AeroTrakK': {
-        'file_path': './burn_data/aerotraks/kitchen/all_data.xlsx',
+        'instrument_key': 'aerotrak_kitchen',
+        'filename': 'all_data.xlsx',
         'process_function': 'process_aerotrak_data',
         'time_shift': 5,
         'process_pollutants': ['PM0.5 (µg/m³)', 'PM1 (µg/m³)', 'PM3 (µg/m³)', 'PM5 (µg/m³)', 'PM10 (µg/m³)', 'PM25 (µg/m³)'],
@@ -94,7 +125,8 @@ INSTRUMENT_CONFIG = {
         'baseline_burns': ['burn5', 'burn6']
     },
     'DustTrak': {
-        'file_path': './burn_data/dusttrak/all_data.xlsx',
+        'instrument_key': 'dusttrak',
+        'filename': 'all_data.xlsx',
         'process_function': 'process_dusttrak_data',
         'time_shift': 7,
         'process_pollutants': ['PM1 (µg/m³)', 'PM2.5 (µg/m³)', 'PM4 (µg/m³)', 'PM10 (µg/m³)', 'PM15 (µg/m³)'],
@@ -109,7 +141,8 @@ INSTRUMENT_CONFIG = {
         'baseline_source': 'burn1'  # Use burn1 as baseline for all burns except burn6
     },
     'MiniAMS': {
-        'file_path': './burn_data/mini-ams/WUI_AMS_Species.xlsx',
+        'instrument_key': 'miniams',
+        'filename': 'WUI_AMS_Species.xlsx',
         'process_function': 'process_miniams_data',
         'time_shift': 0,
         'process_pollutants': ['Organic (µg/m³)', 'Nitrate (µg/m³)', 'Sulfate (µg/m³)', 
@@ -125,7 +158,8 @@ INSTRUMENT_CONFIG = {
         'baseline_source': 'burn1'  # Use burn1 as baseline
     },
     'PurpleAirK': {
-        'file_path': './burn_data/purpleair/garage-kitchen.xlsx',
+        'instrument_key': 'purpleair',
+        'filename': 'garage-kitchen.xlsx',
         'process_function': 'process_purpleairk_data',
         'time_shift': 0,
         'process_pollutants': ['PM2.5 (µg/m³)'],
@@ -138,7 +172,8 @@ INSTRUMENT_CONFIG = {
         'baseline_source': 'burn6'  # Indicates to use burn1 as the source for baseline values
     },
     'QuantAQB': {
-        'file_path': './burn_data/quantaq/MOD-PM-00194-b0fc215029fa4852b926bc50b28fda5a.csv',
+        'instrument_key': 'quantaq_bedroom',
+        'filename': 'MOD-PM-00194-b0fc215029fa4852b926bc50b28fda5a.csv',
         'process_function': 'process_quantaq_data',
         'time_shift': -2.97,
         'process_pollutants': ['PM1 (µg/m³)', 'PM2.5 (µg/m³)', 'PM10 (µg/m³)'],
@@ -156,7 +191,8 @@ INSTRUMENT_CONFIG = {
         }
     },
     'QuantAQK': {
-        'file_path': './burn_data/quantaq/MOD-PM-00197-a6dd467a147a4d95a7b98a8a10ab4ea3.csv',
+        'instrument_key': 'quantaq_kitchen',
+        'filename': 'MOD-PM-00197-a6dd467a147a4d95a7b98a8a10ab4ea3.csv',
         'process_function': 'process_quantaq_data',
         'time_shift': 0,
         'process_pollutants': ['PM1 (µg/m³)', 'PM2.5 (µg/m³)', 'PM10 (µg/m³)'],
@@ -170,7 +206,8 @@ INSTRUMENT_CONFIG = {
         'baseline_burns': ['burn5', 'burn6']
     },
     'SMPS': {
-        'file_path': './burn_data/smps',
+        'instrument_key': 'smps',
+        'filename': None,  # SMPS uses folder path, not a single file
         'process_function': 'process_smps_data',
         'time_shift': 0,
         # Using generic names for columns - will be populated with actual size boundaries during processing
@@ -222,24 +259,6 @@ BURN_LABELS = {
     'burn9': '09-House-2-N',
     'burn10': '10-House-2-U'
 }
-
-# Function to get script metadata
-def get_script_metadata():
-    """Return a string with script name and execution timestamp"""
-    # Try to get the script name using inspect module (works well in VSCode interactive window)
-    try:
-        import inspect
-        script_name = os.path.basename(inspect.getmodule(inspect.currentframe()).__file__)
-    except (NameError, AttributeError, TypeError):
-        # If inspect method fails, try __file__ approach
-        try:
-            script_name = os.path.basename(__file__)
-        except NameError:
-            # Final fallback
-            script_name = "unknown_script.py"
-           
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    return f"Generated by: {script_name} | Date: {timestamp}"
 
 # Modified apply_time_shift function to use simplified config
 def apply_time_shift(df, instrument, burn_id, burn_date):
@@ -472,14 +491,14 @@ def calculate_rolling_average_burn3(data, burn_log):
     numeric_columns = burn3_data.select_dtypes(include=[np.number]).columns
 
     # Calculate rolling averages for numeric columns
-    for column in numeric_columns:
-        rolling_avg_data[column] = burn3_data[column].rolling(pd.Timedelta(minutes=5)).mean().astype(burn3_data[column].dtype)
+    for col_name in numeric_columns:
+        rolling_avg_data[col_name] = burn3_data[col_name].rolling(pd.Timedelta(minutes=5)).mean().astype(burn3_data[col_name].dtype)
 
     # For status columns, keep the first value
     status_columns = ['Flow Status', 'Instrument Status', 'Laser Status']
-    for column in status_columns:
-        if column in burn3_data.columns:
-            rolling_avg_data[column] = burn3_data[column].iloc[0]  # Keep the first value
+    for col_name in status_columns:
+        if col_name in burn3_data.columns:
+            rolling_avg_data[col_name] = burn3_data[col_name].iloc[0]  # Keep the first value
 
     # Create a new DataFrame with rolling averages and status values
     rolling_avg_df = pd.DataFrame(rolling_avg_data, index=burn3_data.index)
@@ -1021,7 +1040,8 @@ def calculate_all_decay_parameters(data, instrument):
     normalize_pollutant = config.get('normalize_pollutant', 'PM10 (µg/m³)')
     
     # Create directory for decay info files if it doesn't exist
-    os.makedirs('./burn_data/burn_calcs', exist_ok=True)
+    burn_calcs_path = get_common_file('burn_calcs')
+    os.makedirs(burn_calcs_path, exist_ok=True)
     
     # Initialize list to store decay info for saving to file
     decay_info_lines = []
@@ -1359,10 +1379,11 @@ def plot_pm_data(data, instrument):
 
     # Get script metadata
     metadata = get_script_metadata()
-    
+
     # Ensure directory exists
-    os.makedirs('./Paper_figures', exist_ok=True)
-    
+    output_figures_path = get_common_file('output_figures')
+    os.makedirs(output_figures_path, exist_ok=True)
+
     # Check if decay parameters have been calculated
     if not decay_parameters:
         print("Calculating decay parameters first...")
@@ -1529,20 +1550,20 @@ def plot_pm_data(data, instrument):
         if decay_rates_info:
             text_div = Div(text="<br>".join(decay_rates_info) + f"<br><small>{metadata}</small>")
             layout = column(p, text_div)
-            
+
             # Define the output file paths
-            html_filename = f'./Paper_figures/{instrument}_{burn_id}_PM-dependent-size_mass-concentration.html'
-            
+            html_filename = output_figures_path / f'{instrument}_{burn_id}_PM-dependent-size_mass-concentration.html'
+
             # Save figure to HTML file
-            output_file(html_filename)
+            output_file(str(html_filename))
             show(layout)
-            
+
         else:
             # Define the output file paths
-            html_filename = f'./Paper_figures/{instrument}_{burn_id}_PM-dependent-size_mass-concentration.html'
-            
+            html_filename = output_figures_path / f'{instrument}_{burn_id}_PM-dependent-size_mass-concentration.html'
+
             # Save figure to HTML file
-            output_file(html_filename)
+            output_file(str(html_filename))
             show(p)
 
 # Generalized plot_normalized_data function
@@ -1565,8 +1586,9 @@ def plot_normalized_data(data, instrument):
     metadata = get_script_metadata()
 
     # Ensure directory exists
-    os.makedirs('./Paper_figures', exist_ok=True)
-    
+    output_figures_path = get_common_file('output_figures')
+    os.makedirs(output_figures_path, exist_ok=True)
+
     # Check if decay parameters have been calculated
     if not decay_parameters:
         print("Calculating decay parameters first...")
@@ -1714,20 +1736,20 @@ def plot_normalized_data(data, instrument):
         if decay_rates_info:
             text_div = Div(text="<br>".join(decay_rates_info) + f"<br><small>{metadata}</small>")
             layout = column(p, text_div)
-            
+
             # Define the output file paths
-            html_filename = f'./Paper_figures/{instrument}_{group_name}_normalized_mass-concentration.html'
-            
+            html_filename = output_figures_path / f'{instrument}_{group_name}_normalized_mass-concentration.html'
+
             # Save figure to HTML file
-            output_file(html_filename)
+            output_file(str(html_filename))
             show(layout)
-            
+
         else:
             # Define the output file paths
-            html_filename = f'./Paper_figures/{instrument}_{group_name}_normalized_mass-concentration.html'
-            
+            html_filename = output_figures_path / f'{instrument}_{group_name}_normalized_mass-concentration.html'
+
             # Save figure to HTML file
-            output_file(html_filename)
+            output_file(str(html_filename))
             show(p)
 
     # Create figures for each group
@@ -2044,9 +2066,11 @@ def calculate_cadr(burn_calc_df, instrument):
             merged_data[uncertainty_col] = merged_data[uncertainty_col].mask(negative_mask, pd.NA)
     
     # Save the comprehensive results to Excel
-    os.makedirs('./burn_data/burn_calcs', exist_ok=True)
-    merged_data.to_excel(f'./burn_data/burn_calcs/{instrument}_decay_and_CADR.xlsx', index=False)
-    print(f"Comprehensive decay and CADR data saved to ./burn_data/burn_calcs/{instrument}_decay_and_CADR.xlsx")
+    burn_calcs_path = get_common_file('burn_calcs')
+    os.makedirs(burn_calcs_path, exist_ok=True)
+    output_file_path = burn_calcs_path / f'{instrument}_decay_and_CADR.xlsx'
+    merged_data.to_excel(output_file_path, index=False)
+    print(f"Comprehensive decay and CADR data saved to {output_file_path}")
     
     # Print the Excel contents to the terminal
     print("\nDecay and CADR Results for", instrument)
@@ -2069,7 +2093,8 @@ def main():
         # Process the selected dataset
         if dataset in INSTRUMENT_CONFIG:
             config = INSTRUMENT_CONFIG[dataset]
-            file_path = config['file_path']
+            # Build file path using data_paths resolver
+            file_path = get_instrument_file_path(config['instrument_key'], config.get('filename'))
             process_func_name = config['process_function']
             
             # Call the appropriate processing function
