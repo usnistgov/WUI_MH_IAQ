@@ -1,3 +1,68 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Clean Air Delivery Rate Analysis by Particle Size
+==================================================
+
+This script calculates clean air delivery rates (CADR) and exponential decay
+parameters from particulate matter (PM) concentration data collected during
+wildfire smoke infiltration experiments in a manufactured home. It processes
+data from multiple air quality instruments to characterize how quickly indoor
+PM concentrations decrease when CR Box (Corsi-Rosenthal Box) air filtration
+devices are activated.
+
+The analysis is part of the NIST Wildland-Urban Interface (WUI) Mobile Home
+Indoor Air Quality (IAQ) study, which evaluates low-cost air filtration
+strategies for protecting occupants during wildfire smoke events. By analyzing
+decay rates across different particle size fractions, the script quantifies
+filtration effectiveness for particles of varying diameters.
+
+Key Metrics Calculated:
+    - Exponential decay rate (h^-1): Rate constant from fitted decay curves
+    - Decay uncertainty: 95% confidence interval for decay rate estimates
+    - Relative standard deviation (RSD): Quality metric for fit reliability
+    - Normalized concentration profiles: For cross-burn comparisons
+    - Time since garage closed: Standardized time reference for all experiments
+
+Analysis Features:
+    - Multi-instrument support: AeroTrak, DustTrak, QuantAQ, SMPS, MiniAMS, PurpleAir
+    - Size-resolved analysis: PM0.5, PM1, PM2.5, PM3, PM5, PM10, PM15, PM25
+    - SMPS size bins: 9-100nm, 100-200nm, 200-300nm, 300-437nm
+    - Chemical species (MiniAMS): Organic, Nitrate, Sulfate, Ammonium, Chloride
+    - Automatic decay period detection based on concentration derivatives
+    - Special case handling for burn3 (rolling average) and burn6 (CR Box timing)
+    - Quality control filtering based on instrument status columns
+    - Interactive Bokeh plots with fitted decay curves
+
+Methodology:
+    1. Load and preprocess instrument data (time shifts, unit conversions)
+    2. Filter data by burn dates using burn log reference
+    3. Apply instrument-specific data quality filters
+    4. Calculate time since garage closed for temporal alignment
+    5. Identify decay start time (maximum concentration or CR Box activation)
+    6. Find decay end time (5% of maximum threshold or fixed offset)
+    7. Fit exponential decay model: C(t) = A * exp(-k * t)
+    8. Calculate decay rate (k), uncertainty, and RSD
+    9. Exclude fits with RSD > 10% as unreliable
+    10. Generate interactive plots with data and fitted curves
+
+Output Files:
+    - HTML plots: {instrument}_{burn_id}_PM-dependent-size_mass-concentration.html
+    - Decay parameters: Stored in global decay_parameters dictionary
+    - Burn calculations: Compiled in burn_calc list for export
+
+Applications:
+    - Quantifying CR Box filtration effectiveness by particle size
+    - Comparing decay rates across different burn conditions
+    - Evaluating spatial variability between bedroom and kitchen locations
+    - Characterizing smoke infiltration dynamics in manufactured housing
+    - Supporting development of protective action recommendations
+
+Author: Nathan Lima
+Institution: National Institute of Standards and Technology (NIST)
+Date: 2024-2026
+"""
+
 #%%
 import os
 import pandas as pd
