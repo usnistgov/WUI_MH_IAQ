@@ -1,0 +1,15 @@
+(base) PS C:\Users\nml\OneDrive - NIST\Documents\GitHub\python_coding\NIST_EPA_Legionella> git pull origin main
+From github.com:NathanL-CodeBase/NIST_EPA_Legionella
+ * branch            main       -> FETCH_HEAD
+Already up to date.
+(base) PS C:\Users\nml\OneDrive - NIST\Documents\GitHub\python_coding\NIST_EPA_Legionella> git push origin main
+Everything up-to-date
+(base) PS C:\Users\nml\OneDrive - NIST\Documents\GitHub\python_coding\NIST_EPA_Legionella> git push work main  
+To github.com:usnistgov/EPA_Legionella.git
+ ! [rejected]        main -> main (fetch first)
+error: failed to push some refs to 'github.com:usnistgov/EPA_Legionella.git'
+hint: Updates were rejected because the remote contains work that you do not
+hint: have locally. This is usually caused by another repository pushing to
+hint: the same ref. If you want to integrate the remote changes, use
+hint: 'git pull' before pushing again.
+hint: See the 'Note about fast-forwards' in 'git push --help' for details.
