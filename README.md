@@ -321,7 +321,7 @@ If you use this software, please cite it as:
 
 ```bibtex
 @software{nist_wui_mh_iaq,
-  author       = {Poppendieck, Dustin G. and Lima, Nathan M.},
+  author       = {Lima, Nathan M. and Poppendieck, Dustin G.},
   title        = {Manufactured Housing Wildland-Urban Interface (WUI) Fire Smoke Study: Indoor Air Quality Analysis Tools},
   year         = {2025},
   publisher    = {National Institute of Standards and Technology},
