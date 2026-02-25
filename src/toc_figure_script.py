@@ -985,7 +985,7 @@ def create_toc_figure(
             continue
 
     # Add vertical line for garage closed (at time 0)
-    ax.axvline(x=0, color="black", linewidth=1, linestyle="-", label="Garage Closed")
+    ax.axvline(x=0, color="blue", linewidth=3, linestyle="--", label="Garage Closed")
 
     # Add vertical line for CR Box On
     cr_box_on_time_str = burn_row["CR Box on"].iloc[0]
@@ -997,8 +997,8 @@ def create_toc_figure(
                 cr_box_on_time_since_garage_closed = time_delta.total_seconds() / 3600
                 ax.axvline(
                     x=cr_box_on_time_since_garage_closed,
-                    color="black",
-                    linewidth=1,
+                    color="blue",
+                    linewidth=3,
                     linestyle="--",
                     label="CR Box on",
                 )
