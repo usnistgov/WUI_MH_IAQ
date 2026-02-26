@@ -62,7 +62,10 @@ repo_root = script_dir.parent
 sys.path.insert(0, str(repo_root))
 
 from scripts import get_script_metadata  # pylint: disable=wrong-import-position
-from src.data_paths import get_common_file, get_data_root  # pylint: disable=wrong-import-position
+from src.data_paths import (  # pylint: disable=wrong-import-position
+    get_common_file,
+    get_data_root,
+)
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -164,7 +167,11 @@ def load_smps_decay_data():
 
         burn = row_data["burn"]
         decay = float(row_data["decay"])
-        uncertainty = float(row_data["decay_uncertainty"]) if pd.notna(row_data["decay_uncertainty"]) else 0.0
+        uncertainty = (
+            float(row_data["decay_uncertainty"])
+            if pd.notna(row_data["decay_uncertainty"])
+            else 0.0
+        )
         crboxes = CRBOX_MAPPING.get(burn, 1)
 
         data[pollutant][burn] = {
@@ -318,8 +325,8 @@ def create_smps_bin_barchart(corrected_data, config, script_metadata):
     # Create figure
     p = figure(
         x_range=BIN_CATEGORIES,
-        height=500,
-        width=900,
+        height=700,
+        width=1200,
         toolbar_location="right",
         tools="pan,box_zoom,wheel_zoom,reset,save",
         background_fill_color="white",
@@ -348,7 +355,13 @@ def create_smps_bin_barchart(corrected_data, config, script_metadata):
 
     for i, condition in enumerate(unique_conditions):
         # Collect rows for this condition
-        cond_data = {"bin_label": [], "decay": [], "upper": [], "lower": [], "is_used": []}
+        cond_data = {
+            "bin_label": [],
+            "decay": [],
+            "upper": [],
+            "lower": [],
+            "is_used": [],
+        }
         for j in range(len(source_data["condition"])):
             if source_data["condition"][j] == condition:
                 for key in cond_data:
@@ -447,7 +460,7 @@ def create_smps_bin_barchart(corrected_data, config, script_metadata):
     p.xgrid.grid_line_color = None
     p.ygrid.grid_line_color = "lightgray"
     p.ygrid.grid_line_alpha = 0.6
-    p.y_range = Range1d(0, 3.5)
+    p.y_range = Range1d(0, 2)
 
     p.yaxis.axis_label = (
         "Baseline-Corrected Decay Rate per Portable Air Cleaner (h\u207b\u00b9)"
@@ -479,7 +492,7 @@ def create_smps_bin_barchart(corrected_data, config, script_metadata):
     detailed_text = "<br>".join(detailed_info)
     div_html = (
         f'<div style="font-size: {TEXT_CONFIG["font_size"]}; '
-        f'font-weight: {TEXT_CONFIG["html_font_weight"]}; '
+        f"font-weight: {TEXT_CONFIG['html_font_weight']}; "
         f'font-style: {TEXT_CONFIG["font_style"]};">'
         f"<b>Detailed Values:</b><br>{detailed_text}<br><br>"
         f"Baseline-corrected decay rates (burn1 subtracted from all measurements)<br>"
