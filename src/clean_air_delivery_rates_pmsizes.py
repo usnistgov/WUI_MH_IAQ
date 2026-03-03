@@ -90,7 +90,7 @@ from metadata_utils import get_script_metadata
 output_notebook()
 
 # Variable for the dataset to be processed
-dataset = "MiniAMS"  # Change this variable as needed
+dataset = "SMPS"  # Change this variable as needed
 
 # Load burn log once
 burn_log_path = get_common_file("burn_log")
@@ -1044,10 +1044,12 @@ def process_smps_data(file_path, instrument="SMPS"):
             try:
                 smps_data["mid_datetime"] = pd.to_datetime(
                     smps_data.apply(
-                        lambda row: row["datetime"]
-                        + (row["next_datetime"] - row["datetime"]) / 2
-                        if pd.notna(row["next_datetime"])
-                        else row["datetime"],
+                        lambda row: (
+                            row["datetime"]
+                            + (row["next_datetime"] - row["datetime"]) / 2
+                            if pd.notna(row["next_datetime"])
+                            else row["datetime"]
+                        ),
                         axis=1,
                     )
                 )
