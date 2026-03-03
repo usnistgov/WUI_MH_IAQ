@@ -67,6 +67,7 @@ NIST_wui_mh_iaq/
 │   ├── smps_finepm_comparison.py
 │   ├── smps_heatmap.py
 │   ├── smps_mass_vs_conc.py
+│   ├── smps_size_bin_barchart.py
 │   │
 │   │ # Data Processing & Utilities
 │   ├── remove_aerotrak_dup_data.py
@@ -89,7 +90,8 @@ NIST_wui_mh_iaq/
 │
 └── testing/                          # Diagnostic and testing scripts
     ├── diagnostic_hourly_ratios.py
-    └── diagnostic_spatial_variation.py
+    ├── diagnostic_spatial_variation.py
+    └── diagnostic_timestamp_alignment.py
 ```
 
 ## Experimental Design
@@ -213,6 +215,7 @@ WUI_smoke/
 #### CADR (Clean Air Delivery Rate) Analysis
 - **`clean_air_delivery_rates_update.py`** — Primary CADR calculation with exponential decay fitting for all instruments
 - **`clean_air_delivery_rates_barchart.py`** — CADR visualization across burn experiments
+- **`clean_air_delivery_rates_pmsizes.py`** — Size-resolved CADR and exponential decay fitting across all instruments (AeroTrak, DustTrak, QuantAQ, SMPS, MiniAMS, PurpleAir); exports decay rates and 95% confidence intervals to Excel for downstream barchart scripts
 - **`clean_air_delivery_rates_pmsizes_SIUniformaty.py`** — CADR analysis with SI unit formatting and uniformity checks
 - **`clean_air_delivery_rates_vs_total_surface_area.py`** — CADR vs. particle surface area correlation
 - **`cadr_comparison_statistical_analysis.py`** — Statistical comparison of CADR values across experimental conditions
@@ -243,11 +246,18 @@ WUI_smoke/
 - **`smps_finepm_comparison.py`** — Fine PM behavior comparison across instruments
 - **`smps_heatmap.py`** — Particle size distribution evolution heatmap
 - **`smps_mass_vs_conc.py`** — Mass concentration vs. number concentration analysis
+- **`smps_size_bin_barchart.py`** — CADR-per-CR-box barcharts grouped by SMPS size bins (9–100 nm, 100–200 nm, 200–300 nm, 300–437 nm) for filter count, new vs. used filter, and MERV grade comparisons
 
 #### Data Processing Utilities
+- **`data_paths.py`** — Portable path resolver; reads `data_config.json` to provide machine-independent access to instrument data folders and common files without hardcoded paths
 - **`remove_aerotrak_dup_data.py`** — Duplicate AeroTrak timestamp removal
 - **`mh_relay_control_log.py`** — HVAC relay control log processing
 - **`toc_figure_script.py`** — Publication table of contents figure generator
+
+#### Diagnostic and Testing Scripts (`testing/`)
+- **`diagnostic_timestamp_alignment.py`** — Examines raw AeroTrak timestamps and resampling behavior to diagnose merge failures in hourly spatial variation bins
+- **`diagnostic_hourly_ratios.py`** — Diagnostic analysis of hourly concentration ratios between instruments
+- **`diagnostic_spatial_variation.py`** — Diagnostic checks for spatial variation calculation inputs and outputs
 
 ### Reusable Utility Modules (`scripts/`)
 
@@ -263,6 +273,8 @@ The `scripts/` directory contains shared utility modules used across analysis sc
 | `data_loaders.py` | Instrument-specific data loading functions |
 | `spatial_analysis_utils.py` | Spatial variability calculations |
 | `metadata_utils.py` | Script metadata and provenance strings |
+| `export_smps_total_concentration.py` | Reads raw SMPS files and exports a combined datetime/total-concentration CSV for sharing; configurable for mass or number concentration; also runnable as a standalone script |
+| `test_utilities.py` | Validates all shared utility modules (datetime_utils, data_filters, statistical_utils, plotting_utils, instrument_config) with assertions; run to verify environment setup after installation |
 
 ### Output
 
@@ -290,6 +302,32 @@ where:
 - **Peak Ratio Index (PRI)**: Ratio of peak concentrations between locations
 - **Average Ratio**: Time-averaged concentration ratio during the decay period
 - **Relative Standard Deviation (RSD)**: Coefficient of variation across locations
+
+### Uncertainty Quantification
+
+Decay rate and CADR uncertainties are propagated through two stages.
+
+**Stage 1 — Decay rate uncertainty**
+
+Exponential decay curves are fitted with `scipy.optimize.curve_fit` (non-linear least squares). The 95% confidence interval on the decay rate *k* is derived from the covariance matrix returned by the solver:
+
+```
+σ_k = 1.96 × √pcov[1, 1]
+```
+
+Fits where the relative standard deviation exceeds 10% (σ_k / k > 0.10) are flagged and excluded from further analysis.
+
+**Stage 2 — CADR uncertainty**
+
+CADR is computed as V × (k − k_baseline). Uncertainty is propagated using the range method:
+
+```
+σ_CADR = V × [(k + σ_k) − (k_baseline − σ_k_baseline)]
+       − V × [(k − σ_k) − (k_baseline + σ_k_baseline)]
+       = 2V × (σ_k + σ_k_baseline)
+```
+
+where *V* is the effective room volume (m³). When two baseline burns are available, *k_baseline* and *σ_k_baseline* are calculated as an inverse-variance weighted average. CADR-per-CR-box uncertainty is obtained by dividing σ_CADR by the number of CR boxes.
 
 ### Statistical Analysis
 - Exponential curve fitting with `scipy.optimize.curve_fit`
