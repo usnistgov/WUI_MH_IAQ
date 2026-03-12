@@ -30,9 +30,6 @@ import pandas as pd
 # Set this to 'MassConc' or 'NumConc'
 CONCENTRATION_TYPE = "MassConc"  # Options: 'MassConc' or 'NumConc'
 
-# Set output directory path
-OUTPUT_PATH = "C:/Users/nml/Downloads/exported_data"
-
 # ======================================
 
 
@@ -120,7 +117,7 @@ def read_transposed_smps_file(file_path, conc_type="MassConc"):
     return result_df
 
 
-def process_all_smps_files(conc_type="MassConc", output_dir=None):
+def process_all_smps_files(conc_type="MassConc"):
     """
     Process all SMPS files of the specified concentration type and export to CSV.
 
@@ -128,8 +125,6 @@ def process_all_smps_files(conc_type="MassConc", output_dir=None):
     -----------
     conc_type : str
         'MassConc' or 'NumConc'
-    output_dir : str or Path
-        Directory to save the output CSV file
     """
     print(f"\n{'=' * 60}")
     print("SMPS Total Concentration Export")
@@ -139,6 +134,7 @@ def process_all_smps_files(conc_type="MassConc", output_dir=None):
     # Load configuration
     config = load_config()
     smps_path = Path(config["instruments"]["smps"]["path"])
+    output_dir = Path(config["common_folders"]["smps_export"])
 
     print(f"SMPS Data Directory: {smps_path}")
 
@@ -205,12 +201,7 @@ def process_all_smps_files(conc_type="MassConc", output_dir=None):
 
     # Export to CSV
     if output_dir is None:
-        output_dir = Path.cwd() / "output"
-    else:
-        output_dir = Path(output_dir)
-
-    output_dir.mkdir(parents=True, exist_ok=True)
-
+    
     output_filename = f"SMPS_Total_{conc_type}.csv"
     output_path = output_dir / output_filename
 
@@ -238,4 +229,4 @@ if __name__ == "__main__":
         sys.exit(1)
 
     # Process files
-    process_all_smps_files(conc_type=CONCENTRATION_TYPE, output_dir=OUTPUT_PATH)
+    process_all_smps_files(conc_type=CONCENTRATION_TYPE)
