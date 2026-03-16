@@ -165,11 +165,11 @@ def process_all_smps_files(conc_type="MassConc"):
             if units is None and len(df) > 0:
                 units = df["units"].iloc[0]
 
-            print(f"  ✓ Extracted {len(df)} data points")
+            print(f"  Extracted {len(df)} data points")
             print(f"  Date range: {df['datetime'].min()} to {df['datetime'].max()}")
 
         except Exception as e:
-            print(f"  ✗ Error processing {file_path.name}: {str(e)}")
+            print(f"  Error processing {file_path.name}: {str(e)}")
             continue
 
     if len(all_data) == 0:
