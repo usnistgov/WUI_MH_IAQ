@@ -384,7 +384,7 @@ If you use this software, please cite it as:
 
 ## Acknowledgments
 
-This research was conducted at the National Institute of Standards and Technology (NIST) as part of the [Indoor Air Quality and Ventilation Group] (https://www.nist.gov/el/beed/indoor-air-quality-ventilation) and [Wildland-Urban Interface Fire Group] (https://www.nist.gov/el/fire/wildland-urban-interface-fire).
+This research was conducted at the National Institute of Standards and Technology (NIST) as part of the [Indoor Air Quality and Ventilation Group](https://www.nist.gov/el/beed/indoor-air-quality-ventilation) and [Wildland-Urban Interface Fire Group](https://www.nist.gov/el/fire/wildland-urban-interface-fire).
 
 Data collection period: April – June 2024
 
