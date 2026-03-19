@@ -4,7 +4,7 @@ Repository for NIST WUI manufactured home indoor air quality (IAQ) study Python 
 
 ## Project Overview
 
-This project analyzes indoor air quality during simulated wildfire smoke infiltration events in a manufactured home (MH) test structure. The research investigates the effectiveness of various mitigation strategies for protecting indoor environments from wildfire smoke:
+This project analyzes indoor air quality during simulated wildfire smoke infiltration events in the NIST ['Indoor Air Quality (IAQ) Test House'](https://www.nist.gov/laboratories/tools-instruments/indoor-air-quality-test-house). The research investigates the effectiveness of various mitigation strategies for protecting indoor environments from wildfire smoke:
 
 - Particulate matter (PM) concentration dynamics during smoke infiltration events
 - Clean Air Delivery Rate (CADR) calculations for air cleaning devices
