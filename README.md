@@ -346,7 +346,7 @@ where *V* is the effective room volume (m³). When two baseline burns are availa
 | AeroTrak Bedroom | TSI AeroTrak 9510 | Optical particle counting | 1–10 |
 | AeroTrak Kitchen | TSI AeroTrak 9510 | Optical particle counting | 1–10 |
 | DustTrak | TSI DRX 8533 | Real-time aerosol monitoring | 1–10 |
-| MiniAMS | Mini Aerosol Mass Spectrometer | Chemical species analysis | 1–3 |
+| MiniAMS | Mini Aerosol Mass Spectrometer | Chemical species analysis | 1–10 |
 | PurpleAir | PA-II-SD | Low-cost PM monitoring | 6–10 |
 | QuantAQ Bedroom | MODULAIR-PM (MOD-PM-00194) | PM monitoring | 4–10 |
 | QuantAQ Kitchen | MODULAIR-PM (MOD-PM-00197) | PM monitoring | 4–10 |
